@@ -2,28 +2,28 @@ import numpy as np
 from typing import Dict, Any
 
 class BatterySystemSimulator:
-    """Simulates a 1 MWh battery energy storage system."""
+    """Simulates a 3 MWh battery energy storage system (2 hours of solar capacity)."""
     
-    def __init__(self, capacity_kwh: float = 1000, seed: int = 42):
+    def __init__(self, capacity_kwh: float = 3000, seed: int = 42):
         self.capacity_kwh = capacity_kwh
-        self.max_power_kw = 200  # Maximum charge/discharge rate
-        self.min_soc = 0.2  # Minimum state of charge
+        self.max_power_kw = 750  # 50% of solar capacity
+        self.min_soc = 0.1  # Lower minimum SOC for more usable capacity
         np.random.seed(seed)
         
         # System parameters
-        self.charging_efficiency = 0.92
-        self.discharging_efficiency = 0.94
-        self.self_discharge_rate = 0.001  # 0.1% per hour
-        self.nominal_voltage = 480
+        self.charging_efficiency = 0.95  # Modern lithium-ion
+        self.discharging_efficiency = 0.95  # Modern lithium-ion
+        self.self_discharge_rate = 0.0005  # 0.05% per hour
+        self.nominal_voltage = 800  # Higher voltage for better efficiency
         self.cycles = 0
-        self.degradation_per_cycle = 0.0001  # 0.01% capacity loss per cycle
+        self.degradation_per_cycle = 0.00005  # Modern batteries degrade slower
         
     def temperature_effect(self, temperature: float) -> float:
         """Calculate temperature effect on capacity."""
-        # Optimal temperature is 25°C
-        # Capacity decreases by 2% per 10°C deviation
+        # Modern batteries have better temperature tolerance
+        # Capacity decreases by 1% per 10°C deviation
         temp_diff = abs(temperature - 25)
-        return 1 - (0.002 * temp_diff)
+        return 1 - (0.001 * temp_diff)
     
     def calculate_voltage(self, soc: float, current: float) -> float:
         """Calculate battery voltage based on SOC and current."""

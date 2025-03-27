@@ -3,20 +3,20 @@ from typing import Dict, Any
 import pandas as pd
 
 class SolarPVSimulator:
-    """Simulates a 500 kW Solar PV system."""
+    """Simulates a 1500 kW Solar PV system with high-efficiency panels."""
     
-    def __init__(self, capacity_kw: float = 500, seed: int = 42):
+    def __init__(self, capacity_kw: float = 1500, seed: int = 42):
         self.capacity_kw = capacity_kw
         np.random.seed(seed)
         
         # System parameters
-        self.nominal_efficiency = 0.15
-        self.temp_coefficient = -0.004  # Efficiency loss per degree C above 25°C
-        self.dust_loss_rate = 0.001    # Daily loss rate due to dust
-        self.noct = 45  # Nominal Operating Cell Temperature
-        self.base_efficiency = 0.18  # Base efficiency at 25°C
+        self.nominal_efficiency = 0.21  # High-efficiency panels
+        self.temp_coefficient = -0.003  # Better temperature performance
+        self.dust_loss_rate = 0.0005   # Improved cleaning schedule
+        self.noct = 42  # Better thermal design
+        self.base_efficiency = 0.23  # Premium panels
         self.rated_power = capacity_kw
-        self.system_efficiency = 0.8
+        self.system_efficiency = 0.85  # Modern inverters
         
     def calculate_irradiance(self, df):
         """Calculate solar irradiance based on time and weather."""

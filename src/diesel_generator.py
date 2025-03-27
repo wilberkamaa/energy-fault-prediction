@@ -2,42 +2,43 @@ import numpy as np
 from typing import Dict, Any
 
 class DieselGeneratorSimulator:
-    """Simulates a 2 MVA diesel generator system."""
+    """Simulates a 1 MVA diesel generator system for backup power."""
     
-    def __init__(self, capacity_kva: float = 2000, seed: int = 42):
+    def __init__(self, capacity_kva: float = 1000, seed: int = 42):
         self.capacity_kva = capacity_kva
-        self.fuel_tank_capacity = 5000  # Liters
+        self.fuel_tank_capacity = 2000  # Smaller tank for backup use
         np.random.seed(seed)
         
         # Operating parameters
-        self.min_load_percent = 0.20  # Minimum loading (20%)
+        self.min_load_percent = 0.30  # Higher minimum for better efficiency
         self.fuel_consumption_rate = {
-            'idle': 15,      # L/hour at idle
-            'full_load': 120 # L/hour at full load
+            'idle': 8,       # More efficient modern engine
+            'full_load': 80  # Better fuel economy
         }
-        self.maintenance_interval = 500  # hours
+        self.maintenance_interval = 750  # Modern engine needs less maintenance
         
     def calculate_fuel_consumption(self, load_percent: float) -> float:
         """Calculate fuel consumption based on load percentage."""
         if load_percent < self.min_load_percent:
-            return self.fuel_consumption_rate['idle']
+            return 0  # Don't run below minimum load
         
-        # Linear interpolation between idle and full load consumption
+        # Quadratic consumption curve for better part-load efficiency
+        norm_load = (load_percent - self.min_load_percent) / (1 - self.min_load_percent)
         consumption = (self.fuel_consumption_rate['idle'] + 
                       (self.fuel_consumption_rate['full_load'] - 
-                       self.fuel_consumption_rate['idle']) * load_percent)
+                       self.fuel_consumption_rate['idle']) * (0.8 * norm_load + 0.2 * norm_load**2))
         return consumption
     
     def calculate_efficiency(self, load_percent: float) -> float:
         """Calculate generator efficiency based on load percentage."""
-        # Typical diesel generator efficiency curve
+        # Modern diesel generator efficiency curve
         if load_percent < self.min_load_percent:
-            return 0.25
+            return 0
         elif load_percent > 0.9:
-            return 0.38
+            return 0.42  # Higher peak efficiency
         else:
-            # Peak efficiency around 75% load
-            return 0.35 * np.sin(np.pi * (load_percent - 0.2) / 1.4) + 0.3
+            # Peak efficiency around 80% load
+            return 0.40 * np.sin(np.pi * (load_percent - 0.3) / 1.2) + 0.35
     
     def generate_output(self, df, load_demand: np.ndarray, 
                        pv_output: np.ndarray,

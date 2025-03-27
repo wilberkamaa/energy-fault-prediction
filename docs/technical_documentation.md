@@ -3,9 +3,9 @@
 ## Overview
 
 This codebase generates synthetic data for a hybrid energy system located in Kenya, consisting of:
-- 500 kW Solar PV System
-- 2 MVA Diesel Generator
-- 1 MWh Battery Storage
+- 1500 kW Solar PV System
+- 1 MVA Diesel Generator
+- 3 MWh Battery Storage
 - 25 kV Grid Connection
 
 The data generator creates realistic time series data with weather patterns, load profiles, and system faults typical of Kenyan conditions.
@@ -31,6 +31,69 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
+## System Components
+
+### 1. Solar PV System
+- Capacity: 1500 kW
+- High-efficiency panels (23% base efficiency)
+- Modern inverters (85% system efficiency)
+- Advanced thermal design (NOCT: 42°C)
+- Improved cleaning schedule
+- Expected to provide 30-50% of daily load
+
+### 2. Battery Energy Storage
+- Capacity: 3 MWh (2 hours of solar capacity)
+- Maximum power: 750 kW (50% of solar capacity)
+- Modern lithium-ion technology
+- High round-trip efficiency (95%)
+- Low self-discharge (0.05% per hour)
+- Extended cycle life
+- Usable capacity: 90% of rated
+
+### 3. Diesel Generator
+- Capacity: 1 MVA
+- Modern high-efficiency design
+- Operates only when necessary
+- Minimum load: 30% for efficiency
+- Peak efficiency: 42% at 90% load
+- Smart fuel consumption curve
+- Extended maintenance interval (750 hours)
+
+### 4. Grid Connection
+- Nominal voltage: 25 kV
+- Base reliability: 98%
+- Scheduled maintenance: Every 90 days
+- Power quality monitoring
+- Automatic power balancing
+
+## Design Principles
+
+### Power Management Strategy
+1. **Solar Priority**
+   - Solar PV is the primary power source
+   - Sized to meet 30-50% of average daily load
+   - Excess solar charges battery
+
+2. **Battery Management**
+   - Charges primarily from solar excess
+   - Discharges during peak demand or low solar
+   - Maintains 10-90% SOC range
+   - Smart charge/discharge algorithms
+
+3. **Generator Control**
+   - Last resort power source
+   - Operates only when:
+     * Battery SOC < 20%
+     * Load > Solar + Battery + Grid
+     * Grid unavailable
+   - Maintains minimum 30% loading
+
+4. **Grid Integration**
+   - Supplements solar during low generation
+   - Absorbs excess solar when battery full
+   - Provides frequency regulation
+   - Backup during system maintenance
+
 ## Dataset Generation Methodology
 
 ### 1. Weather Simulation
@@ -51,10 +114,10 @@ temperature = temp_base + temp_seasonal + temp_noise
 ### 2. Solar PV Generation
 
 #### Parameters
-- Nominal capacity: 500 kW
-- Base efficiency: 18% at 25°C
+- Nominal capacity: 1500 kW
+- Base efficiency: 23% at 25°C
 - Temperature coefficient: -0.4%/°C
-- NOCT (Nominal Operating Cell Temperature): 45°C
+- NOCT (Nominal Operating Cell Temperature): 42°C
 
 #### Mathematical Model
 ```python
@@ -121,12 +184,12 @@ Key features:
 ### 5. Battery System
 
 #### Parameters
-- Capacity: 1 MWh
-- Maximum power: 200 kW
+- Capacity: 3 MWh
+- Maximum power: 750 kW
 - Minimum state of charge (SOC): 20%
 - Charge efficiency: 95%
 - Discharge efficiency: 95%
-- Self-discharge rate: 0.1% per hour
+- Self-discharge rate: 0.05% per hour
 - Temperature coefficient: -0.2% capacity per °C above 25°C
 
 #### Mathematical Model
@@ -174,10 +237,10 @@ Key features:
 ### 6. Diesel Generator
 
 #### Parameters
-- Capacity: 2 MVA
+- Capacity: 1 MVA
 - Minimum load: 30%
 - Fuel consumption curve: Quadratic function
-- Maintenance interval: 500 hours
+- Maintenance interval: 750 hours
 
 #### Mathematical Model
 ```python
