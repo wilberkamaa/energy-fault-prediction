@@ -129,7 +129,7 @@ class HybridSystemDataGenerator:
         # Generate fault events
         system_state = {
             'grid_voltage': df['grid_voltage'],
-            'inverter_temp': df['solar_cell_temp'],  
+            'inverter_temp': df['solar_cell_temp'],
             'generator_runtime': df['generator_runtime'],
             'battery_soc': df['battery_soc']
         }
@@ -139,30 +139,13 @@ class HybridSystemDataGenerator:
         
         print("Validating data...")
         # Validate and clean data
-        data_dict = {
-            'solar': {k.replace('solar_', ''): v for k, v in df.items() if k.startswith('solar_')},
-            'battery': {k.replace('battery_', ''): v for k, v in df.items() if k.startswith('battery_')},
-            'generator': {k.replace('generator_', ''): v for k, v in df.items() if k.startswith('generator_')},
-            'grid': {k.replace('grid_', ''): v for k, v in df.items() if k.startswith('grid_')},
-            'load': {k.replace('load_', ''): v for k, v in df.items() if k.startswith('load_')}
-        }
+        df = self.validator.validate_and_clean(df)
         
-        cleaned_data = self.validator.validate_and_clip(data_dict)
-        
-        # Update DataFrame with cleaned data
-        for component, params in cleaned_data.items():
-            for param, values in params.items():
-                df[f'{component}_{param}'] = values
-        
-        # Add power balance check
-        df['system_balanced'] = self.validator.check_power_balance(data_dict)
-        
+        # Save if output file provided
         if output_file:
-            # Create directory if it doesn't exist
-            Path(output_file).parent.mkdir(parents=True, exist_ok=True)
-            
-            # Save to parquet format
-            df.to_parquet(output_file, compression='snappy')
-            print(f"Dataset saved to {output_file}")
+            print(f"Saving dataset to {output_file}...")
+            output_path = Path(output_file)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            df.to_parquet(output_file)
         
         return df

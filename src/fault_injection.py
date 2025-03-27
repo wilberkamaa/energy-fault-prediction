@@ -99,10 +99,9 @@ class FaultInjectionSystem:
         
         # Initialize arrays
         fault_occurred = np.zeros(hours, dtype=bool)
-        fault_types = np.full(hours, FaultType.NO_FAULT)
+        fault_types = np.full(hours, 'NO_FAULT', dtype=object)  
         fault_severity = np.zeros(hours)
         active_faults: List[FaultEvent] = []
-        all_fault_events: List[FaultEvent] = []
         
         for hour in range(hours):
             # Check for potential new faults
@@ -135,21 +134,29 @@ class FaultInjectionSystem:
                     )
                     
                     active_faults.append(fault_event)
-                    all_fault_events.append(fault_event)
             
             # Record current fault state
             if active_faults:
                 # Take the most severe active fault
                 current_fault = max(active_faults, key=lambda x: x.severity)
                 fault_occurred[hour] = True
-                fault_types[hour] = current_fault.fault_type
+                fault_types[hour] = current_fault.fault_type.name  
                 fault_severity[hour] = current_fault.severity
         
+        # Convert fault events to a more usable format
+        fault_starts = np.zeros(hours, dtype=bool)
+        fault_durations = np.zeros(hours)
+        
+        for fault in active_faults:
+            fault_starts[fault.start_time] = True
+            fault_durations[fault.start_time] = fault.duration
+        
         return {
-            'fault_occurred': fault_occurred,
-            'fault_types': fault_types,
-            'fault_severity': fault_severity,
-            'fault_events': all_fault_events
+            'occurred': fault_occurred,
+            'type': fault_types,
+            'severity': fault_severity,
+            'start': fault_starts,
+            'duration': fault_durations
         }
     
     def _generate_fault_effects(self, fault_type: FaultType, 

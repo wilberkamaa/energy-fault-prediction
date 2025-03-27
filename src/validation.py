@@ -1,125 +1,65 @@
 import numpy as np
+import pandas as pd
 from typing import Dict, Any
 
 class DataValidator:
-    """Validates and enforces physical constraints on system data."""
+    """Validates and cleans the generated data."""
     
     def __init__(self):
-        # System constraints
-        self.constraints = {
-            'battery': {
-                'soc_range': (0.2, 0.95),
-                'voltage_range': (400, 600),
-                'temperature_range': (10, 45)
-            },
-            'solar': {
-                'irradiance_range': (0, 1200),
-                'efficiency_range': (0.1, 0.2),
-                'temperature_range': (10, 85)
-            },
-            'generator': {
-                'frequency_range': (59.5, 60.5),
-                'temperature_range': (60, 95),
-                'fuel_level_range': (0, 5000)
-            },
-            'grid': {
-                'voltage_range': (22500, 27500),  # ±10% of 25kV
-                'frequency_range': (49.5, 50.5)
-            },
-            'load': {
-                'power_factor_range': (0.8, 1.0)
-            }
+        # Define valid ranges for different parameters
+        self.valid_ranges = {
+            'weather_temperature': (-10, 45),  # °C
+            'weather_humidity': (0, 100),  # %
+            'weather_cloud_cover': (0, 100),  # %
+            'weather_wind_speed': (0, 30),  # m/s
+            'solar_power': (0, 1500),  # kW
+            'solar_cell_temp': (0, 85),  # °C
+            'battery_soc': (0, 1),  # 0-1
+            'battery_power': (-200, 200),  # kW
+            'battery_voltage': (350, 450),  # V
+            'battery_current': (-500, 500),  # A
+            'battery_temperature': (0, 60),  # °C
+            'generator_power': (0, 2000),  # kW
+            'generator_fuel_level': (0, 5000),  # L
+            'generator_frequency': (55, 65),  # Hz
+            'generator_temperature': (0, 120),  # °C
+            'grid_voltage': (0.8 * 25000, 1.2 * 25000),  # V
+            'grid_frequency': (48, 52),  # Hz
+            'grid_power': (-2000, 2000),  # kW
+            'load_demand': (0, 2000),  # kW
+            'load_power_factor': (0.8, 1.0),  # unitless
+            'fault_severity': (0, 1)  # unitless
         }
     
-    def validate_and_clip(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Validate and clip data to ensure it meets physical constraints.
-        Returns cleaned data and a list of validation messages.
-        """
-        messages = []
-        cleaned_data = data.copy()
+    def validate_and_clean(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Validate and clean the data, ensuring all values are within valid ranges."""
+        # Make a copy to avoid modifying the original
+        df = df.copy()
         
-        # Battery validation
-        if 'battery' in data:
-            battery = data['battery']
-            if 'soc' in battery:
-                cleaned_data['battery']['soc'] = np.clip(
-                    battery['soc'],
-                    *self.constraints['battery']['soc_range']
-                )
-            if 'voltage' in battery:
-                cleaned_data['battery']['voltage'] = np.clip(
-                    battery['voltage'],
-                    *self.constraints['battery']['voltage_range']
-                )
-            if 'temperature' in battery:
-                cleaned_data['battery']['temperature'] = np.clip(
-                    battery['temperature'],
-                    *self.constraints['battery']['temperature_range']
-                )
+        # Clip numerical values to valid ranges
+        for column, (min_val, max_val) in self.valid_ranges.items():
+            if column in df.columns:
+                df[column] = df[column].clip(min_val, max_val)
         
-        # Solar validation
-        if 'solar' in data:
-            solar = data['solar']
-            if 'irradiance' in solar:
-                cleaned_data['solar']['irradiance'] = np.clip(
-                    solar['irradiance'],
-                    *self.constraints['solar']['irradiance_range']
-                )
-            if 'efficiency' in solar:
-                cleaned_data['solar']['efficiency'] = np.clip(
-                    solar['efficiency'],
-                    *self.constraints['solar']['efficiency_range']
-                )
-            if 'cell_temperature' in solar:
-                cleaned_data['solar']['cell_temperature'] = np.clip(
-                    solar['cell_temperature'],
-                    *self.constraints['solar']['temperature_range']
-                )
+        # Validate power balance
+        total_generation = (
+            df['solar_power'] +
+            df['generator_power'] +
+            df['grid_power'] +
+            df['battery_power']
+        )
+        total_load = df['load_demand']
         
-        # Generator validation
-        if 'generator' in data:
-            generator = data['generator']
-            if 'frequency' in generator:
-                cleaned_data['generator']['frequency'] = np.clip(
-                    generator['frequency'],
-                    *self.constraints['generator']['frequency_range']
-                )
-            if 'temperature' in generator:
-                cleaned_data['generator']['temperature'] = np.clip(
-                    generator['temperature'],
-                    *self.constraints['generator']['temperature_range']
-                )
-            if 'fuel_level' in generator:
-                cleaned_data['generator']['fuel_level'] = np.clip(
-                    generator['fuel_level'],
-                    *self.constraints['generator']['fuel_level_range']
-                )
+        # Allow for small imbalances (1% of max load)
+        tolerance = 0.01 * df['load_demand'].max()
+        df['power_balanced'] = (total_generation - total_load).abs() <= tolerance
         
-        # Grid validation
-        if 'grid' in data:
-            grid = data['grid']
-            if 'voltage' in grid:
-                cleaned_data['grid']['voltage'] = np.clip(
-                    grid['voltage'],
-                    *self.constraints['grid']['voltage_range']
-                )
-            if 'frequency' in grid:
-                cleaned_data['grid']['frequency'] = np.clip(
-                    grid['frequency'],
-                    *self.constraints['grid']['frequency_range']
-                )
+        # Check for NaN values
+        if df.isna().any().any():
+            print("Warning: NaN values found in dataset")
+            df = df.fillna(0)  # Replace NaN with 0
         
-        # Load validation
-        if 'load' in data:
-            load = data['load']
-            if 'power_factor' in load:
-                cleaned_data['load']['power_factor'] = np.clip(
-                    load['power_factor'],
-                    *self.constraints['load']['power_factor_range']
-                )
-        
-        return cleaned_data
+        return df
     
     def check_power_balance(self, data: Dict[str, Any], tolerance: float = 0.01) -> bool:
         """

@@ -108,15 +108,54 @@ voltage = nominal_voltage + 500 * sin(2π * hour / 24) + normal(0, voltage_varia
 
 #### Parameters
 - Capacity: 1 MWh
-- Charge/discharge efficiency: 95%
-- Maximum C-rate: 0.5C
-- Depth of discharge limit: 20%
+- Maximum power: 200 kW
+- Minimum state of charge (SOC): 20%
+- Charge efficiency: 95%
+- Discharge efficiency: 95%
+- Self-discharge rate: 0.1% per hour
+- Temperature coefficient: -0.2% capacity per °C above 25°C
 
 #### Mathematical Model
 ```python
-power_available = min(max_power, (capacity - soc) * charge_efficiency)
-new_soc = soc + (charge_power * charge_efficiency - discharge_power / discharge_efficiency) / capacity
+# Temperature effect on capacity
+temp_factor = 1 - 0.002 * (temperature - 25)  # -0.2% per °C above 25°C
+effective_capacity = nominal_capacity * temp_factor
+
+# Charging
+power_charge = min(
+    power_balance,
+    max_power,
+    (1 - soc) * effective_capacity * charge_efficiency
+)
+
+# Discharging
+power_discharge = min(
+    -power_balance,
+    max_power,
+    (soc - min_soc) * effective_capacity / discharge_efficiency
+)
+
+# State of charge update
+if charging:
+    soc_new = soc + (power * charge_efficiency) / effective_capacity
+else:
+    soc_new = soc - (power / discharge_efficiency) / effective_capacity
+
+# Temperature model
+temp_rise = 0.05 * abs(power)  # Temperature rise proportional to power flow
+battery_temp = ambient_temp + temp_rise
 ```
+
+The battery system maintains consistent power flow direction:
+- Negative power = Charging (absorbing power)
+- Positive power = Discharging (providing power)
+
+Key features:
+1. Temperature-dependent capacity
+2. Efficiency losses during charge/discharge
+3. Self-discharge over time
+4. SOC limits (20% minimum)
+5. Power limits based on SOC and capacity
 
 ### 6. Diesel Generator
 
