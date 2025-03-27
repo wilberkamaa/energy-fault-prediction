@@ -23,7 +23,7 @@ class SolarPVSimulator:
         seasonal_factor = 1 - 0.3 * np.sin(2 * np.pi * (df['day_of_year'] + 81) / 365)
         
         # Apply cloud effects
-        cloud_effect = 1 - df['cloud_cover']
+        cloud_effect = 1 - df['weather_cloud_cover']
         
         # Combine factors
         irradiance = base_irradiance * seasonal_factor * cloud_effect

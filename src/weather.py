@@ -39,15 +39,15 @@ class WeatherSimulator:
         temp_noise = np.random.normal(0, 0.5, len(df))
         temperature = temp_base + temp_seasonal + temp_noise
         
-        # Generate cloud cover
-        def get_cloud_cover(row):
-            season = row['season']
+        # Generate cloud cover based on season and time of day
+        cloud_cover = np.zeros(len(df))
+        for i in range(len(df)):
+            season = df['season'].iloc[i]
             base_prob = np.random.uniform(*self.season_params[season]['cloud_cover'])
             # More clouds in early morning and late afternoon
-            hour_factor = 0.2 * np.sin(2 * np.pi * (row['hour'] - 6) / 12)
-            return np.clip(base_prob + hour_factor, 0, 1)
-        
-        cloud_cover = df.apply(get_cloud_cover, axis=1)
+            hour = df['hour'].iloc[i]
+            hour_factor = 0.2 * np.sin(2 * np.pi * (hour - 6) / 12)
+            cloud_cover[i] = np.clip(base_prob + hour_factor, 0, 1)
         
         # Generate humidity
         humidity_base = 60 + 20 * np.sin(2 * np.pi * df['hour'] / 24)

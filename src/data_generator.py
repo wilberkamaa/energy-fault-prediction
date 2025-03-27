@@ -75,7 +75,7 @@ class HybridSystemDataGenerator:
         df['season'] = df.index.map(get_season)
         
         print("Generating weather conditions...")
-        # Generate weather conditions
+        # Generate weather conditions FIRST
         weather_data = self.weather_sim.generate_weather(df)
         for key, value in weather_data.items():
             df[f'weather_{key}'] = value
@@ -87,7 +87,7 @@ class HybridSystemDataGenerator:
             df[f'load_{key}'] = value
         
         print("Simulating solar PV system...")
-        # Generate solar PV output
+        # Generate solar PV output (now has access to weather data)
         solar_data = self.solar_sim.generate_output(df)
         for key, value in solar_data.items():
             df[f'solar_{key}'] = value
