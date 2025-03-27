@@ -46,6 +46,7 @@ class GridConnectionSimulator:
         frequency = np.zeros(hours)
         available = np.zeros(hours, dtype=bool)
         power_quality = np.zeros(hours)
+        power = np.zeros(hours)  # Added power output
         
         # Generate planned maintenance schedule (every 90 days)
         maintenance_days = np.arange(0, df.index[-1].dayofyear, 90)
@@ -53,7 +54,7 @@ class GridConnectionSimulator:
         for i in range(hours):
             current_time = df.index[i]
             hour = current_time.hour
-            season = df['weather_season'][i]  # Use weather_season for consistency
+            season = df['weather_season'][i]
             
             # Check if time is during maintenance
             is_maintenance = current_time.dayofyear in maintenance_days and 8 <= hour <= 16
@@ -82,10 +83,20 @@ class GridConnectionSimulator:
                     0.9 if season == 'dry' else 0.8  # Season
                 ]
                 power_quality[i] = np.prod(quality_factors)
+                
+                # Calculate grid power (positive = importing from grid, negative = exporting to grid)
+                load = df['load_demand'][i]
+                solar = df['solar_power'][i] if 'solar_power' in df else 0
+                battery = df['battery_power'][i] if 'battery_power' in df else 0
+                generator = df['generator_power'][i] if 'generator_power' in df else 0
+                
+                # Grid supplies/absorbs the difference
+                power[i] = load - (solar + battery + generator)
             else:
                 voltage[i] = 0
                 frequency[i] = 0
                 power_quality[i] = 0
+                power[i] = 0
             
         # Store maintenance days in the class for future reference
         self.maintenance_schedule = maintenance_days
@@ -94,5 +105,6 @@ class GridConnectionSimulator:
             'voltage': voltage,
             'frequency': frequency,
             'available': available,
-            'power_quality': power_quality
+            'power_quality': power_quality,
+            'power': power
         }

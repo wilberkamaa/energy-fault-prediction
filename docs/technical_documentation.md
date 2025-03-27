@@ -93,16 +93,30 @@ load = base_pattern * time_factor * seasonal_factor * (1 + random_walk)
 #### Parameters
 - Nominal voltage: 25 kV
 - Base reliability: 98%
-- Seasonal reliability factors:
-  - Long rains: 95%
-  - Short rains: 97%
-  - Dry season: 99%
+- Voltage variation: ±2%
+- Peak hours: 18:00-22:00
+- Maintenance schedule: Every 90 days, 8:00-16:00
 
 #### Mathematical Model
 ```python
+# Grid availability
 reliability = base_reliability * season_factor * time_factor
-voltage = nominal_voltage + 500 * sin(2π * hour / 24) + normal(0, voltage_variation)
+is_available = random() < reliability and not is_maintenance
+
+# Voltage calculation
+base_voltage = nominal_voltage + 500 * sin(2π * hour / 24)
+voltage = base_voltage + normal(0, voltage_variation * nominal_voltage)
+
+# Power calculation
+grid_power = load_demand - (solar_power + battery_power + generator_power)
 ```
+
+Key features:
+1. Realistic daily voltage patterns
+2. Seasonal reliability variations
+3. Scheduled maintenance periods
+4. Power quality metrics
+5. Automatic power balancing
 
 ### 5. Battery System
 
@@ -170,6 +184,70 @@ Key features:
 fuel_rate = a * power² + b * power + c  # Quadratic consumption curve
 efficiency = power_output / (fuel_rate * fuel_energy_density)
 ```
+
+### 7. Fault Injection
+
+#### Fault Types
+1. LINE_SHORT_CIRCUIT
+2. LINE_PROLONGED_UNDERVOLTAGE
+3. INVERTER_IGBT_FAILURE
+4. GENERATOR_FIELD_FAILURE
+5. GRID_VOLTAGE_SAG
+6. GRID_OUTAGE
+7. BATTERY_OVERDISCHARGE
+
+#### Fault Parameters
+- Occurrence probability: 0.001-0.005 per hour
+- Duration: 1-48 hours depending on type
+- Severity: 0.3-1.0 (normalized)
+- Condition-based triggers
+
+#### Mathematical Model
+```python
+# Base probability adjustment
+prob = base_prob * condition_factor * severity
+
+# Fault duration
+duration = uniform(min_duration, max_duration)
+
+# Fault effects
+voltage_drop = 0.8 + 0.2 * severity
+efficiency_drop = 0.3 * severity
+temperature_rise = 20 * severity
+```
+
+Key features:
+1. Condition-based fault triggering
+2. Multiple concurrent faults possible
+3. Severity-based effects
+4. Component-specific impacts
+5. Time-varying fault durations
+
+### 8. Data Validation
+
+#### Valid Parameter Ranges
+- Temperature: -10°C to 45°C
+- Humidity: 0-100%
+- Cloud cover: 0-100%
+- Wind speed: 0-30 m/s
+- Solar power: 0-1500 kW
+- Battery SOC: 0-100%
+- Grid voltage: ±20% nominal
+- Load demand: 0-2000 kW
+
+#### Power Balance
+```python
+total_generation = solar + battery + generator + grid
+total_load = demand
+is_balanced = abs(total_generation - total_load) <= tolerance
+```
+
+Key features:
+1. Automated range validation
+2. Power balance checking
+3. NaN handling
+4. Data type verification
+5. Consistency enforcement
 
 ## Data Structure
 
