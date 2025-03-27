@@ -251,18 +251,56 @@ Key features:
 
 ## Data Structure
 
-### Output Format
-The generator produces a pandas DataFrame with hourly resolution containing:
+### Column Naming Convention
+All columns follow a consistent naming pattern:
+- Weather data: `weather_*` (e.g., `weather_temperature`, `weather_cloud_cover`)
+- Solar PV: `solar_*` (e.g., `solar_power`, `solar_irradiance`)
+- Grid: `grid_*` (e.g., `grid_power`, `grid_voltage`)
+- Battery: `battery_*` (e.g., `battery_power`, `battery_soc`)
+- Generator: `generator_*` (e.g., `generator_power`, `generator_fuel_rate`)
+- Load: `load_*` (e.g., `load_demand`, `load_reactive_power`)
+- Faults: `fault_*` (e.g., `fault_type`, `fault_severity`)
 
-| Category | Features | Description |
-|----------|----------|-------------|
-| Weather | temperature, humidity, cloud_cover, wind_speed | Ambient conditions |
-| Solar | irradiance, cell_temp, power, efficiency | PV system performance |
-| Load | demand, power_factor | Consumer demand profile |
-| Grid | voltage, frequency, available, power_quality | Grid parameters |
-| Battery | soc, power, voltage, temperature | Battery state |
-| Generator | power, fuel_consumption, runtime, efficiency | Generator operation |
-| Faults | type, severity, duration, component | System faults |
+### Key Parameters
+1. **Weather Parameters**
+   - `weather_temperature`: Ambient temperature (°C)
+   - `weather_cloud_cover`: Cloud cover ratio (0-1)
+   - `weather_humidity`: Relative humidity (%)
+   - `weather_wind_speed`: Wind speed (m/s)
+
+2. **Solar PV Parameters**
+   - `solar_irradiance`: Solar irradiance (W/m²)
+   - `solar_cell_temp`: PV cell temperature (°C)
+   - `solar_power`: Power output (kW)
+
+3. **Grid Parameters**
+   - `grid_voltage`: Grid voltage (V)
+   - `grid_frequency`: Grid frequency (Hz)
+   - `grid_power`: Power exchange with grid (kW, positive=import)
+   - `grid_available`: Grid availability status (bool)
+   - `grid_power_quality`: Power quality metric (0-1)
+
+4. **Battery Parameters**
+   - `battery_power`: Power exchange (kW, positive=discharge)
+   - `battery_soc`: State of charge (%)
+   - `battery_voltage`: Battery voltage (V)
+   - `battery_temperature`: Battery temperature (°C)
+
+5. **Generator Parameters**
+   - `generator_power`: Power output (kW)
+   - `generator_fuel_rate`: Fuel consumption rate (L/h)
+   - `generator_temperature`: Engine temperature (°C)
+   - `generator_runtime`: Cumulative runtime (h)
+
+6. **Load Parameters**
+   - `load_demand`: Active power demand (kW)
+   - `load_reactive_power`: Reactive power (kVAR)
+   - `load_power_factor`: Power factor (0-1)
+
+7. **Fault Parameters**
+   - `fault_type`: Type of fault (string)
+   - `fault_severity`: Fault severity (0-1)
+   - `fault_duration`: Duration in hours (float)
 
 ## Example Usage
 
