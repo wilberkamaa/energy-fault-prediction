@@ -34,3 +34,36 @@ ENV/
 # Generated data
 data/*.parquet
 data/*.csv
+data/kaggle_prepared/
+
+# Kaggle integration
+kaggle_integration/kaggle_output/
+kaggle_integration/notebooks/**/*.ipynb
+kaggle_integration/kernel-metadata.json
+kaggle.json
+
+# Trained models (large files)
+models/trained/**/*.h5
+models/trained/**/saved_model.pb
+models/trained/**/variables/
+
+# Streamlit
+.streamlit/
+.streamlit/config.toml
+.streamlit/secrets.toml
+
+# Output files
+output/
+*.log
+*.png
+*.jpg
+*.pdf
+
+# Temporary files
+.DS_Store
+.env
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+.nox/
