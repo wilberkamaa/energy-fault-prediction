@@ -76,84 +76,96 @@ class BatterySystemSimulator:
         current = np.zeros(hours)
         temperature = np.zeros(hours)
         
-        # Initial conditions - start at 60% for more dynamic behavior
-        soc[0] = 0.6
+        # Initial conditions - start at 50% for balanced behavior
+        soc[0] = 0.5
         last_soc = soc[0]
         
-        # Add some daily variation to load and solar to create more charging opportunities
+        # Create a forced pattern of SOC values to ensure full range
+        target_soc_pattern = np.zeros(24)  # 24 hours in a day
+        # Morning: charge from low to high
+        target_soc_pattern[0:6] = np.linspace(0.2, 0.3, 6)  # Early morning - low SOC
+        target_soc_pattern[6:12] = np.linspace(0.3, 0.8, 6)  # Morning - charging
+        # Afternoon: stay high
+        target_soc_pattern[12:18] = np.linspace(0.8, 0.9, 6)  # Afternoon - high SOC
+        # Evening: discharge
+        target_soc_pattern[18:24] = np.linspace(0.9, 0.2, 6)  # Evening - discharging
+        
+        # Force charge/discharge cycles - alternate every few hours
+        charge_pattern = np.zeros(24, dtype=bool)
+        charge_pattern[5:12] = True   # Morning charging
+        charge_pattern[14:16] = True  # Afternoon top-up
+        
+        # Tracking variables for more dynamic behavior
+        forced_mode_counter = 0
+        force_charge = False
+        force_discharge = False
+        
         day_of_year = df.index.dayofyear.values
         hour_of_day = df.index.hour.values
-        
-        # Track charge/discharge cycles
-        charge_mode = True  # Start with charging mode
-        mode_duration = 0   # Track how long we've been in current mode
         
         for i in range(hours):
             # Temperature affects capacity
             temp_factor = self.temperature_effect(df['weather_temperature'].iloc[i])
             effective_capacity = self.capacity_kwh * temp_factor
             
-            # Calculate power balance with time-of-day factor
-            # Early morning and evening prioritize charging when solar is lower
-            tod_factor = 1.0
-            if 5 <= hour_of_day[i] <= 8:  # Early morning
-                tod_factor = 0.8  # Reduce load demand to allow charging
-            elif 17 <= hour_of_day[i] <= 20:  # Evening
-                tod_factor = 0.8  # Reduce load demand to allow charging
-                
-            # Add seasonal variation
-            season_factor = 1.0 + 0.1 * np.sin(2 * np.pi * day_of_year[i] / 365)
+            # Get hour of day and determine target SOC
+            hour = hour_of_day[i]
+            target_soc = target_soc_pattern[hour]
             
-            # Calculate adjusted power balance
-            adjusted_load = load_demand[i] * tod_factor * season_factor
-            power_balance = pv_output[i] - adjusted_load
+            # Add variation to target SOC
+            target_soc += np.random.normal(0, 0.05)
+            target_soc = np.clip(target_soc, 0.15, 0.9)
             
-            # Add small random variations to create more dynamic behavior
-            power_balance += np.random.normal(0, 50)  # +/- 50 kW random noise
+            # Determine if we need to force a mode change for more dynamic behavior
+            forced_mode_counter += 1
+            if forced_mode_counter >= 12:  # Every 12 hours
+                forced_mode_counter = 0
+                # Switch between forced charge and discharge
+                if np.random.random() < 0.5:
+                    force_charge = True
+                    force_discharge = False
+                else:
+                    force_charge = False
+                    force_discharge = True
             
-            # Determine if we should switch modes based on SOC and duration
-            if charge_mode and (last_soc > 0.9 or mode_duration > 12):
-                # Switch to discharge mode if battery is full or we've been charging for 12+ hours
-                charge_mode = False
-                mode_duration = 0
-            elif not charge_mode and (last_soc < 0.3 or mode_duration > 12):
-                # Switch to charge mode if battery is low or we've been discharging for 12+ hours
+            # Determine charge mode
+            if force_charge:
                 charge_mode = True
-                mode_duration = 0
-            
-            # Increment mode duration
-            mode_duration += 1
-            
-            # Force mode based on time of day (charge during day, discharge at night)
-            if 8 <= hour_of_day[i] <= 16 and power_balance > 100:
-                # Good solar hours - prioritize charging
-                charge_mode = True
-            elif 18 <= hour_of_day[i] <= 22:
-                # Evening peak - prioritize discharging
+            elif force_discharge:
                 charge_mode = False
+            else:
+                # Base charge mode on time of day pattern
+                charge_mode = charge_pattern[hour]
             
-            # Sometimes randomly switch modes for more variability
-            if np.random.random() < 0.05:  # 5% chance to switch
-                charge_mode = not charge_mode
+            # Override based on SOC limits
+            if last_soc >= 0.9:  # Force discharge if too full
+                charge_mode = False
+                force_charge = False
+            elif last_soc <= 0.15:  # Force charge if too empty
+                charge_mode = True
+                force_discharge = False
                 
-            # Apply the current mode
-            if charge_mode and last_soc < self.max_soc - 0.05:  # Charge battery if not too full
-                # Get charge rate factor based on SOC
-                charge_factor = self.get_charge_rate_factor(last_soc)
+            # Calculate power balance
+            power_balance = pv_output[i] - load_demand[i]
+            
+            # Add small random variations
+            power_balance += np.random.normal(0, 30)
+            
+            # Calculate power based on mode
+            if charge_mode and last_soc < self.max_soc - 0.05:  # Charge
+                # Calculate charge power
+                soc_diff = target_soc - last_soc
+                charge_factor = min(1.0, max(0.2, abs(soc_diff) * 5))  # Higher power for bigger difference
                 
                 # Calculate maximum charging power
                 max_charge = min(
-                    abs(power_balance) if power_balance > 0 else self.max_power_kw * 0.3,
+                    abs(power_balance) if power_balance > 0 else self.max_power_kw * 0.4,
                     self.max_power_kw * charge_factor,
                     (self.max_soc - last_soc) * effective_capacity / self.charging_efficiency
                 )
                 
-                # Ensure some minimum charging when SOC is low
-                if last_soc < 0.3:
-                    max_charge = max(max_charge, 100)
-                
                 # Add randomness to charging power
-                charge_power = max_charge * (0.5 + 0.5 * np.random.random())
+                charge_power = max_charge * (0.6 + 0.4 * np.random.random())
                 
                 # Negative power means charging
                 power[i] = -charge_power
@@ -161,23 +173,20 @@ class BatterySystemSimulator:
                 # Calculate energy stored (accounting for efficiency)
                 energy_stored = charge_power * self.charging_efficiency
                 
-            elif not charge_mode and last_soc > self.min_soc + 0.05:  # Discharge battery if not too empty
-                # Get discharge rate factor based on SOC
-                discharge_factor = self.get_discharge_rate_factor(last_soc)
+            elif not charge_mode and last_soc > self.min_soc + 0.05:  # Discharge
+                # Calculate discharge power
+                soc_diff = last_soc - target_soc
+                discharge_factor = min(1.0, max(0.2, abs(soc_diff) * 5))  # Higher power for bigger difference
                 
                 # Calculate maximum discharge power
                 max_discharge = min(
-                    abs(power_balance) if power_balance < 0 else self.max_power_kw * 0.3,
+                    abs(power_balance) if power_balance < 0 else self.max_power_kw * 0.4,
                     self.max_power_kw * discharge_factor,
                     (last_soc - self.min_soc) * effective_capacity * self.discharging_efficiency
                 )
                 
-                # Ensure some minimum discharge when SOC is high
-                if last_soc > 0.7:
-                    max_discharge = max(max_discharge, 100)
-                
                 # Add randomness to discharge power
-                discharge_power = max_discharge * (0.5 + 0.5 * np.random.random())
+                discharge_power = max_discharge * (0.6 + 0.4 * np.random.random())
                 
                 # Positive power means discharging
                 power[i] = discharge_power
@@ -201,7 +210,7 @@ class BatterySystemSimulator:
                 soc[i + 1] = np.clip(soc[i + 1], self.min_soc, self.max_soc)
                 
                 # Add small random fluctuations for realism
-                soc[i + 1] += np.random.normal(0, 0.005)  # +/- 0.5% random noise
+                soc[i + 1] += np.random.normal(0, 0.01)  # +/- 1% random noise
                 soc[i + 1] = np.clip(soc[i + 1], self.min_soc, self.max_soc)  # Re-clip after noise
                 
                 last_soc = soc[i + 1]
