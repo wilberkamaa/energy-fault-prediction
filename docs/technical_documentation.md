@@ -40,6 +40,7 @@ pip install -r requirements.txt
 - Advanced thermal design (NOCT: 42°C)
 - Improved cleaning schedule
 - Expected to provide 30-50% of daily load
+- **Priority Level: 1 (Highest)** - Maximized usage when available
 
 ### 2. Battery Energy Storage
 - Capacity: 3 MWh (2 hours of solar capacity)
@@ -49,22 +50,60 @@ pip install -r requirements.txt
 - Low self-discharge (0.05% per hour)
 - Extended cycle life
 - Usable capacity: 90% of rated
+- Dynamic SOC range (15%-95%)
+- Balanced charging/discharging cycles
+- **Priority Level: 2** - Used after solar to meet demand or store excess solar
 
-### 3. Diesel Generator
+### 3. Grid Connection
+- Voltage: 25 kV
+- Reliability: 98% (base)
+- Seasonal reliability factors
+  - Long rains: 95%
+  - Short rains: 97%
+  - Dry season: 99%
+- Bi-directional power flow (import/export)
+- Peak hour limitations (30% reduction during peak hours)
+- **Priority Level: 3** - Used after solar and battery
+
+### 4. Diesel Generator
 - Capacity: 1 MVA
-- Modern high-efficiency design
-- Operates only when necessary
-- Minimum load: 30% for efficiency
-- Peak efficiency: 42% at 90% load
-- Smart fuel consumption curve
-- Extended maintenance interval (750 hours)
+- Fuel tank: 2000 liters
+- Minimum load: 40% (improved efficiency)
+- Minimum runtime: 2 hours once started
+- Modern engine with improved efficiency
+- Maintenance interval: 750 hours
+- **Priority Level: 4 (Lowest)** - Last resort, only used when other sources insufficient
 
-### 4. Grid Connection
-- Nominal voltage: 25 kV
-- Base reliability: 98%
-- Scheduled maintenance: Every 90 days
-- Power quality monitoring
-- Automatic power balancing
+## Power Dispatch Strategy
+
+The system implements a hierarchical power dispatch strategy to optimize renewable energy usage and minimize operational costs:
+
+1. **Solar PV (First Priority)**
+   - Always used when available
+   - Excess solar production can charge batteries or be exported to grid
+
+2. **Battery Storage (Second Priority)**
+   - Charges during solar surplus
+   - Discharges to meet demand when solar is insufficient
+   - Maintains dynamic SOC range (15%-95%)
+   - Follows daily charge/discharge patterns based on time of day
+
+3. **Grid Connection (Third Priority)**
+   - Supplies remaining power needs after solar and battery
+   - Reduced usage during peak hours (6 PM - 10 PM)
+   - Can accept excess power from solar when batteries are full
+
+4. **Diesel Generator (Last Resort)**
+   - Only activates when all other sources are insufficient
+   - Requires minimum load (40%) for efficient operation
+   - Runs for minimum of 2 consecutive hours once started
+   - Automatically activates during grid outages with significant load
+
+This dispatch strategy ensures:
+- Maximum utilization of renewable energy
+- Optimal battery cycling behavior
+- Reduced operational costs and emissions
+- Reliable power supply under all conditions
 
 ## Design Principles
 

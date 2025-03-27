@@ -10,7 +10,8 @@ class DieselGeneratorSimulator:
         np.random.seed(seed)
         
         # Operating parameters
-        self.min_load_percent = 0.30  # Higher minimum for better efficiency
+        self.min_load_percent = 0.40  # Higher minimum for better efficiency
+        self.min_runtime_hours = 2    # Minimum runtime once started
         self.fuel_consumption_rate = {
             'idle': 8,       # More efficient modern engine
             'full_load': 80  # Better fuel economy
@@ -55,22 +56,39 @@ class DieselGeneratorSimulator:
         # Initial conditions
         fuel_level[0] = self.fuel_tank_capacity
         last_maintenance = 0
-        cumulative_runtime = 0  
+        cumulative_runtime = 0
+        consecutive_runtime = 0  # Track consecutive runtime hours
+        generator_on = False     # Track if generator is currently running
         
         for i in range(hours):
             # Calculate required power
-            required_power = max(0, load_demand[i] - pv_output[i] - battery_output[i])
+            required_power = load_demand[i]  # This is now the remaining load after solar, battery, and grid
             
             # Calculate load percentage
             load_percent = min(required_power / self.capacity_kva, 1.0)
             
-            if load_percent > 0:
+            # Determine if generator should run
+            should_run = False
+            
+            # If generator is already running, maintain minimum runtime
+            if generator_on and consecutive_runtime < self.min_runtime_hours:
+                should_run = True
+            # Otherwise, only run if load is significant and above minimum threshold
+            elif load_percent >= self.min_load_percent:
+                should_run = True
+            # Special case: grid is unavailable and we have significant load
+            elif 'grid_available' in df.columns and not df['grid_available'].iloc[i] and load_percent > 0.1:
+                should_run = True
+            
+            if should_run:
                 # Generator is running
+                generator_on = True
                 cumulative_runtime += 1
+                consecutive_runtime += 1
                 runtime[i] = cumulative_runtime
                 
                 # Calculate fuel consumption
-                fuel_consumption = self.calculate_fuel_consumption(load_percent)
+                fuel_consumption = self.calculate_fuel_consumption(max(load_percent, self.min_load_percent))
                 
                 # Update fuel level
                 if i > 0:
@@ -81,8 +99,8 @@ class DieselGeneratorSimulator:
                     fuel_level[i] = self.fuel_tank_capacity
                 
                 # Calculate output
-                efficiency = self.calculate_efficiency(load_percent)
-                power[i] = required_power * efficiency
+                efficiency = self.calculate_efficiency(max(load_percent, self.min_load_percent))
+                power[i] = required_power
                 
                 # Calculate frequency
                 base_freq = 60 + 0.1 * (load_percent - 0.5)
@@ -99,6 +117,9 @@ class DieselGeneratorSimulator:
                     efficiency *= 1.05  # Efficiency boost after maintenance
             else:
                 # Generator is off
+                generator_on = False
+                consecutive_runtime = 0
+                
                 if i > 0:
                     fuel_level[i] = fuel_level[i-1]
                     

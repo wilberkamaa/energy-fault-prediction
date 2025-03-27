@@ -97,15 +97,13 @@ class HybridSystemDataGenerator:
         solar_data = self.solar_sim.generate_output(df)
         for key, value in solar_data.items():
             df[f'solar_{key}'] = value
-        
-        print("Simulating grid connection...")
-        # Generate grid parameters
-        grid_data = self.grid_sim.generate_output(df)
-        for key, value in grid_data.items():
-            df[f'grid_{key}'] = value
+            
+        # Initialize remaining power needs after solar
+        df['remaining_load'] = load_data['demand'] - solar_data['power']
+        df['remaining_load'] = df['remaining_load'].clip(lower=0)  # Only consider deficit
         
         print("Simulating battery system...")
-        # Generate battery parameters
+        # Generate battery parameters - now takes remaining load after solar
         battery_data = self.battery_sim.generate_output(
             df,
             solar_data['power'],  
@@ -113,17 +111,36 @@ class HybridSystemDataGenerator:
         )
         for key, value in battery_data.items():
             df[f'battery_{key}'] = value
+            
+        # Update remaining power needs after battery
+        df['remaining_load'] = df['remaining_load'] - battery_data['power']
+        df['remaining_load'] = df['remaining_load'].clip(lower=0)  # Only consider deficit
+        
+        print("Simulating grid connection...")
+        # Generate grid parameters - now takes remaining load after solar and battery
+        # Grid will only provide power when it's available
+        grid_data = self.grid_sim.generate_output(df)
+        for key, value in grid_data.items():
+            df[f'grid_{key}'] = value
+            
+        # Update remaining power needs after grid
+        df['remaining_load'] = df['remaining_load'] - grid_data['power']
+        df['remaining_load'] = df['remaining_load'].clip(lower=0)  # Only consider deficit
         
         print("Simulating diesel generator...")
-        # Generate generator parameters
+        # Generate generator parameters - only for remaining load after solar, battery, and grid
         generator_data = self.generator_sim.generate_output(
             df,
-            load_data['demand'],  
+            df['remaining_load'],  # Only the remaining load after other sources
             solar_data['power'],  
             battery_data['power'] 
         )
         for key, value in generator_data.items():
             df[f'generator_{key}'] = value
+        
+        # Clean up intermediate calculation columns
+        if 'remaining_load' in df.columns:
+            df = df.drop(columns=['remaining_load'])
         
         print("Injecting faults...")
         # Generate fault events

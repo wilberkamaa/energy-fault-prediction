@@ -46,7 +46,7 @@ class GridConnectionSimulator:
         frequency = np.zeros(hours)
         available = np.zeros(hours, dtype=bool)
         power_quality = np.zeros(hours)
-        power = np.zeros(hours)  # Added power output
+        power = np.zeros(hours)  # Power output (positive = import, negative = export)
         
         # Generate planned maintenance schedule (every 90 days)
         maintenance_days = np.arange(0, df.index[-1].dayofyear, 90)
@@ -54,7 +54,7 @@ class GridConnectionSimulator:
         for i in range(hours):
             current_time = df.index[i]
             hour = current_time.hour
-            season = df['weather_season'][i]
+            season = df['weather_season'].iloc[i]
             
             # Check if time is during maintenance
             is_maintenance = current_time.dayofyear in maintenance_days and 8 <= hour <= 16
@@ -84,14 +84,40 @@ class GridConnectionSimulator:
                 ]
                 power_quality[i] = np.prod(quality_factors)
                 
-                # Calculate grid power (positive = importing from grid, negative = exporting to grid)
-                load = df['load_demand'][i]
-                solar = df['solar_power'][i] if 'solar_power' in df else 0
-                battery = df['battery_power'][i] if 'battery_power' in df else 0
-                generator = df['generator_power'][i] if 'generator_power' in df else 0
-                
-                # Grid supplies/absorbs the difference
-                power[i] = load - (solar + battery + generator)
+                # Calculate grid power based on remaining load
+                # Positive = importing from grid, negative = exporting to grid
+                if 'remaining_load' in df.columns:
+                    # If there's remaining load, grid supplies it
+                    remaining_load = df['remaining_load'].iloc[i]
+                    
+                    # During peak hours, limit grid import to encourage battery/generator use
+                    if self.is_peak_hour(hour):
+                        # Reduce grid usage during peak hours by 30%
+                        power[i] = remaining_load * 0.7
+                    else:
+                        power[i] = remaining_load
+                else:
+                    # Fallback calculation if remaining_load not available
+                    load = df['load_demand'].iloc[i]
+                    solar = df['solar_power'].iloc[i] if 'solar_power' in df.columns else 0
+                    battery = df['battery_power'].iloc[i] if 'battery_power' in df.columns else 0
+                    
+                    # Calculate power balance
+                    power_balance = load - (solar + battery)
+                    
+                    # If power_balance > 0, we need to import from grid
+                    # If power_balance < 0, we can export to grid
+                    if power_balance > 0:
+                        # During peak hours, limit grid import
+                        if self.is_peak_hour(hour):
+                            power[i] = power_balance * 0.7
+                        else:
+                            power[i] = power_balance
+                    else:
+                        # Allow export to grid (negative value)
+                        # Limit export based on grid capacity and regulations
+                        max_export = 500  # Maximum export capacity in kW
+                        power[i] = max(-max_export, power_balance)
             else:
                 voltage[i] = 0
                 frequency[i] = 0
