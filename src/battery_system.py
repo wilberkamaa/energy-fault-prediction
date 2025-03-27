@@ -7,6 +7,7 @@ class BatterySystemSimulator:
     def __init__(self, capacity_kwh: float = 1000, seed: int = 42):
         self.capacity_kwh = capacity_kwh
         self.max_power_kw = 200  # Maximum charge/discharge rate
+        self.min_soc = 0.2  # Minimum state of charge
         np.random.seed(seed)
         
         # System parameters
@@ -38,76 +39,73 @@ class BatterySystemSimulator:
         hours = len(df)
         
         # Initialize arrays
-        soc = np.zeros(hours)  # State of Charge
-        power_output = np.zeros(hours)
+        soc = np.zeros(hours)  # State of charge
+        power = np.zeros(hours)  # Power output (positive for discharge)
         voltage = np.zeros(hours)
         current = np.zeros(hours)
         temperature = np.zeros(hours)
-        cycles = np.zeros(hours)
         
         # Initial conditions
-        soc[0] = 0.8  # Start at 80% SOC
-        cumulative_cycles = 0
+        soc[0] = 0.8  # Start at 80% charge
         last_soc = soc[0]
         
         for i in range(hours):
             # Temperature affects capacity
-            temp_factor = self.temperature_effect(df['temperature'][i])
+            temp_factor = self.temperature_effect(df['weather_temperature'][i])
             effective_capacity = self.capacity_kwh * temp_factor
             
             # Calculate power balance
             power_balance = pv_output[i] - load_demand[i]
             
-            if power_balance > 0:  # Excess power - charge battery
+            if power_balance > 0:  # Excess power, can charge battery
+                # Calculate maximum charging power
                 max_charge = min(
                     power_balance,
                     self.max_power_kw,
-                    (1 - soc[i]) * effective_capacity
+                    (1 - last_soc) * effective_capacity * self.charging_efficiency
                 )
-                power_output[i] = -max_charge  # Negative means charging
+                power[i] = -min(power_balance, max_charge)  # Negative for charging
                 
                 # Account for charging efficiency
                 energy_stored = max_charge * self.charging_efficiency
-                
-            else:  # Power deficit - discharge battery
+            else:  # Power deficit, need to discharge battery
+                # Calculate maximum discharge power
                 max_discharge = min(
                     -power_balance,
                     self.max_power_kw,
-                    soc[i] * effective_capacity
+                    (last_soc - self.min_soc) * effective_capacity / self.discharging_efficiency
                 )
-                power_output[i] = max_discharge
+                power[i] = min(-power_balance, max_discharge)  # Positive for discharging
                 
                 # Account for discharging efficiency
                 energy_stored = -max_discharge / self.discharging_efficiency
             
-            # Update SOC
+            # Update state of charge
             if i < hours - 1:
-                soc[i + 1] = soc[i] + energy_stored / effective_capacity
+                if power[i] < 0:  # Charging
+                    soc[i + 1] = soc[i] + energy_stored / effective_capacity
+                else:  # Discharging
+                    soc[i + 1] = soc[i] - energy_stored / effective_capacity
                 
                 # Account for self-discharge
                 soc[i + 1] *= (1 - self.self_discharge_rate)
                 
-                # Calculate partial cycles
-                cycle_fraction = abs(soc[i + 1] - last_soc) / 2
-                cumulative_cycles += cycle_fraction
+                # Ensure SOC stays within bounds
+                soc[i + 1] = np.clip(soc[i + 1], self.min_soc, 1.0)
                 last_soc = soc[i + 1]
             
             # Calculate electrical parameters
-            current[i] = power_output[i] * 1000 / self.nominal_voltage  # Convert kW to W
+            current[i] = power[i] * 1000 / self.nominal_voltage  # Convert kW to W
             voltage[i] = self.calculate_voltage(soc[i], current[i])
             
             # Battery temperature (simplified model)
-            temp_rise = abs(power_output[i]) / self.max_power_kw * 15  # Max 15°C rise
-            temperature[i] = df['temperature'][i] + temp_rise
-            
-            cycles[i] = cumulative_cycles
+            temp_rise = 0.05 * abs(power[i])  # Temperature rise due to power flow
+            temperature[i] = df['weather_temperature'][i] + temp_rise
             
         return {
             'soc': soc,
-            'power_output': power_output,
+            'power': power,  
             'voltage': voltage,
             'current': current,
-            'temperature': temperature,
-            'cycles': cycles,
-            'capacity_degradation': 1 - (cycles * self.degradation_per_cycle)
+            'temperature': temperature
         }

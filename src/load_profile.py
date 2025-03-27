@@ -74,7 +74,7 @@ class LoadProfileGenerator:
             hour = current_time.hour
             is_weekend = current_time.weekday() >= 5
             is_holiday = self.is_holiday(current_time)
-            season = df['season'][i]
+            season = df['weather_season'][i]  # Use weather_season for consistency
             
             # Calculate various factors
             time_factor = self.get_time_factor(hour, is_weekend or is_holiday)
@@ -99,15 +99,12 @@ class LoadProfileGenerator:
             
             # Generate power factor (typically 0.8 to 0.95)
             base_pf = 0.85 + 0.1 * np.sin(2 * np.pi * hour / 24)
-            power_factor[i] = base_pf + 0.02 * np.random.randn()
+            power_factor[i] = base_pf + np.random.normal(0, 0.02)
         
-        # Calculate additional electrical parameters
-        apparent_power = load_demand / power_factor
-        reactive_power = np.sqrt(apparent_power**2 - load_demand**2)
+        # Clip power factor to realistic range
+        power_factor = np.clip(power_factor, 0.8, 0.95)
         
         return {
-            'active_power': load_demand,
-            'reactive_power': reactive_power,
-            'apparent_power': apparent_power,
+            'demand': load_demand,  # Changed from active_power to demand
             'power_factor': power_factor
         }

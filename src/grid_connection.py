@@ -53,7 +53,7 @@ class GridConnectionSimulator:
         for i in range(hours):
             current_time = df.index[i]
             hour = current_time.hour
-            season = df['season'][i]
+            season = df['weather_season'][i]  # Use weather_season for consistency
             
             # Check if time is during maintenance
             is_maintenance = current_time.dayofyear in maintenance_days and 8 <= hour <= 16
@@ -87,10 +87,12 @@ class GridConnectionSimulator:
                 frequency[i] = 0
                 power_quality[i] = 0
             
+        # Store maintenance days in the class for future reference
+        self.maintenance_schedule = maintenance_days
+            
         return {
             'voltage': voltage,
             'frequency': frequency,
             'available': available,
-            'power_quality': power_quality,
-            'maintenance_schedule': maintenance_days
+            'power_quality': power_quality
         }

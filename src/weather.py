@@ -19,13 +19,13 @@ class WeatherSimulator:
         Generate weather conditions based on time and season.
         
         Args:
-            df: DataFrame with datetime index and 'season' column
+            df: DataFrame with datetime index and 'weather_season' column
             
         Returns:
             Dictionary containing weather parameters
         """
         # Base temperature pattern (daily cycle)
-        temp_base = 25 + 5 * np.sin(2 * np.pi * (df['hour'] - 14) / 24)  # Peak at 2 PM
+        temp_base = 25 + 5 * np.sin(2 * np.pi * (df['weather_hour'] - 14) / 24)  # Peak at 2 PM
         
         # Add seasonal variation
         season_temp_offset = {
@@ -33,7 +33,7 @@ class WeatherSimulator:
             'short_rains': 0,
             'dry': 2
         }
-        temp_seasonal = df['season'].map(season_temp_offset)
+        temp_seasonal = df['weather_season'].map(season_temp_offset)
         
         # Add random variations
         temp_noise = np.random.normal(0, 0.5, len(df))
@@ -42,15 +42,15 @@ class WeatherSimulator:
         # Generate cloud cover based on season and time of day
         cloud_cover = np.zeros(len(df))
         for i in range(len(df)):
-            season = df['season'].iloc[i]
+            season = df['weather_season'].iloc[i]
             base_prob = np.random.uniform(*self.season_params[season]['cloud_cover'])
             # More clouds in early morning and late afternoon
-            hour = df['hour'].iloc[i]
+            hour = df['weather_hour'].iloc[i]
             hour_factor = 0.2 * np.sin(2 * np.pi * (hour - 6) / 12)
             cloud_cover[i] = np.clip(base_prob + hour_factor, 0, 1)
         
         # Generate humidity
-        humidity_base = 60 + 20 * np.sin(2 * np.pi * df['hour'] / 24)
+        humidity_base = 60 + 20 * np.sin(2 * np.pi * df['weather_hour'] / 24)
         humidity = humidity_base + 10 * cloud_cover + np.random.normal(0, 2, len(df))
         humidity = np.clip(humidity, 30, 100)
         

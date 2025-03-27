@@ -1,5 +1,6 @@
 import numpy as np
 from typing import Dict, Any
+import pandas as pd
 
 class SolarPVSimulator:
     """Simulates a 500 kW Solar PV system."""
@@ -12,15 +13,17 @@ class SolarPVSimulator:
         self.nominal_efficiency = 0.15
         self.temp_coefficient = -0.004  # Efficiency loss per degree C above 25°C
         self.dust_loss_rate = 0.001    # Daily loss rate due to dust
+        self.noct = 45  # Nominal Operating Cell Temperature
+        self.base_efficiency = 0.18  # Base efficiency at 25°C
         
     def calculate_irradiance(self, df) -> np.ndarray:
         """Calculate solar irradiance considering time and weather."""
         # Base irradiance pattern (clear sky)
-        hour_shifted = (df['hour'] - 6) % 24  # Shift to start at 6 AM
+        hour_shifted = (df['weather_hour'] - 6) % 24  # Shift to start at 6 AM
         base_irradiance = 1000 * np.abs(np.sin(np.pi * hour_shifted / 12))
         
         # Seasonal variation (Kenya's position near equator)
-        seasonal_factor = 1 - 0.3 * np.sin(2 * np.pi * (df['day_of_year'] + 81) / 365)
+        seasonal_factor = 1 - 0.3 * np.sin(2 * np.pi * (df['weather_day_of_year'] + 81) / 365)
         
         # Apply cloud effects
         cloud_effect = 1 - df['weather_cloud_cover']
@@ -37,53 +40,39 @@ class SolarPVSimulator:
     def calculate_cell_temperature(self, ambient_temp: np.ndarray, 
                                  irradiance: np.ndarray) -> np.ndarray:
         """Calculate PV cell temperature based on ambient temperature and irradiance."""
-        # NOCT method (Nominal Operating Cell Temperature)
-        return ambient_temp + (irradiance / 800) * 30  # Simplified model
+        # NOCT method for cell temperature
+        return ambient_temp + (self.noct - 20) * irradiance / 800
+
+    def calculate_efficiency(self, cell_temp: np.ndarray) -> np.ndarray:
+        """Calculate temperature-dependent efficiency."""
+        return self.base_efficiency * (1 - self.temp_coefficient * (cell_temp - 25))
         
-    def calculate_efficiency(self, cell_temp: np.ndarray, 
-                           days_since_cleaning: np.ndarray) -> np.ndarray:
-        """Calculate overall system efficiency."""
-        # Temperature derating
-        temp_derating = 1 + self.temp_coefficient * (cell_temp - 25)
-        
-        # Dust derating
-        dust_derating = 1 - self.dust_loss_rate * days_since_cleaning
-        
-        # Combined efficiency
-        efficiency = self.nominal_efficiency * temp_derating * dust_derating
-        
-        return np.clip(efficiency, 0.05, self.nominal_efficiency)
-        
-    def generate_output(self, df) -> Dict[str, Any]:
+    def generate_output(self, df: pd.DataFrame) -> Dict[str, Any]:
         """Generate PV system output parameters."""
         # Calculate irradiance
         irradiance = self.calculate_irradiance(df)
         
         # Calculate cell temperature
-        cell_temp = self.calculate_cell_temperature(df['temperature'], irradiance)
+        cell_temp = self.calculate_cell_temperature(df['weather_temperature'], irradiance)
         
         # Simulate dust accumulation (cleaned every 30 days)
         days = (df.index - df.index[0]).days
-        days_since_cleaning = days % 30
+        dust_factor = 1 - 0.002 * (days % 30)  # 0.2% loss per day
         
-        # Calculate system efficiency
-        efficiency = self.calculate_efficiency(cell_temp, days_since_cleaning)
+        # Calculate efficiency
+        efficiency = self.calculate_efficiency(cell_temp)
         
-        # Calculate power output (kW)
-        power_output = (irradiance * self.capacity_kw * efficiency) / 1000
-        
-        # Add inverter efficiency (96-98%)
-        inverter_efficiency = 0.97 + np.random.normal(0, 0.005, len(df))
-        power_output *= inverter_efficiency
-        
-        # DC voltage (V)
-        dc_voltage = 480 + 20 * np.sin(2 * np.pi * df['hour'] / 24) + \
-                    np.random.normal(0, 2, len(df))
+        # Calculate power output
+        power = (
+            self.capacity_kw 
+            * irradiance / 1000  # Convert W/m² to ratio
+            * efficiency 
+            * dust_factor
+        )
         
         return {
             'irradiance': irradiance,
-            'cell_temperature': cell_temp,
+            'cell_temp': cell_temp,
             'efficiency': efficiency,
-            'power_output': power_output,
-            'dc_voltage': dc_voltage
+            'power': power
         }

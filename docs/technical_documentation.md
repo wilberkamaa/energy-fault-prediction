@@ -1,0 +1,186 @@
+# Hybrid Energy System Synthetic Data Generator
+
+## Overview
+
+This codebase generates synthetic data for a hybrid energy system located in Kenya, consisting of:
+- 500 kW Solar PV System
+- 2 MVA Diesel Generator
+- 1 MWh Battery Storage
+- 25 kV Grid Connection
+
+The data generator creates realistic time series data with weather patterns, load profiles, and system faults typical of Kenyan conditions.
+
+## Installation & Setup
+
+### Dependencies
+```
+numpy>=1.21.0
+pandas>=1.3.0
+scipy>=1.7.0
+matplotlib>=3.4.0
+seaborn>=0.11.0
+```
+
+### Environment Setup
+```bash
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+## Dataset Generation Methodology
+
+### 1. Weather Simulation
+
+#### Parameters
+- Temperature: Daily cycle with seasonal variations
+  - Base: 25°C ± 5°C daily variation
+  - Seasonal offset: -2°C (long rains), 0°C (short rains), +2°C (dry)
+  
+#### Mathematical Model
+```python
+temp_base = 25 + 5 * sin(2π * (hour - 14) / 24)  # Peak at 2 PM
+temp_seasonal = season_offset[current_season]
+temp_noise = normal(μ=0, σ=0.5)
+temperature = temp_base + temp_seasonal + temp_noise
+```
+
+### 2. Solar PV Generation
+
+#### Parameters
+- Nominal capacity: 500 kW
+- Base efficiency: 18% at 25°C
+- Temperature coefficient: -0.4%/°C
+- NOCT (Nominal Operating Cell Temperature): 45°C
+
+#### Mathematical Model
+```python
+# Irradiance calculation
+irradiance = base_irradiance * seasonal_factor * (1 - cloud_cover)
+
+# Cell temperature
+cell_temp = ambient_temp + (NOCT - 20) * irradiance / 800
+
+# Efficiency
+efficiency = base_efficiency * (1 - temp_coefficient * (cell_temp - 25))
+
+# Power output
+power = capacity * (irradiance / 1000) * efficiency * dust_factor
+```
+
+### 3. Load Profile Generation
+
+#### Parameters
+- Base load: 500 kW
+- Peak load: 2000 kW
+- Time factors:
+  - Morning peak (6-9): 1.3×
+  - Evening peak (18-22): 1.5×
+  - Night valley (23-5): 0.7×
+  - Weekend reduction: 0.8×
+
+#### Mathematical Model
+```python
+base_pattern = base_load + (peak_load - base_load) * (0.5 + 0.5 * sin(π * (hour - 6) / 12))
+load = base_pattern * time_factor * seasonal_factor * (1 + random_walk)
+```
+
+### 4. Grid Connection
+
+#### Parameters
+- Nominal voltage: 25 kV
+- Base reliability: 98%
+- Seasonal reliability factors:
+  - Long rains: 95%
+  - Short rains: 97%
+  - Dry season: 99%
+
+#### Mathematical Model
+```python
+reliability = base_reliability * season_factor * time_factor
+voltage = nominal_voltage + 500 * sin(2π * hour / 24) + normal(0, voltage_variation)
+```
+
+### 5. Battery System
+
+#### Parameters
+- Capacity: 1 MWh
+- Charge/discharge efficiency: 95%
+- Maximum C-rate: 0.5C
+- Depth of discharge limit: 20%
+
+#### Mathematical Model
+```python
+power_available = min(max_power, (capacity - soc) * charge_efficiency)
+new_soc = soc + (charge_power * charge_efficiency - discharge_power / discharge_efficiency) / capacity
+```
+
+### 6. Diesel Generator
+
+#### Parameters
+- Capacity: 2 MVA
+- Minimum load: 30%
+- Fuel consumption curve: Quadratic function
+- Maintenance interval: 500 hours
+
+#### Mathematical Model
+```python
+fuel_rate = a * power² + b * power + c  # Quadratic consumption curve
+efficiency = power_output / (fuel_rate * fuel_energy_density)
+```
+
+## Data Structure
+
+### Output Format
+The generator produces a pandas DataFrame with hourly resolution containing:
+
+| Category | Features | Description |
+|----------|----------|-------------|
+| Weather | temperature, humidity, cloud_cover, wind_speed | Ambient conditions |
+| Solar | irradiance, cell_temp, power, efficiency | PV system performance |
+| Load | demand, power_factor | Consumer demand profile |
+| Grid | voltage, frequency, available, power_quality | Grid parameters |
+| Battery | soc, power, voltage, temperature | Battery state |
+| Generator | power, fuel_consumption, runtime, efficiency | Generator operation |
+| Faults | type, severity, duration, component | System faults |
+
+## Example Usage
+
+```python
+from src.data_generator import HybridSystemDataGenerator
+
+# Initialize generator
+generator = HybridSystemDataGenerator(seed=42)
+
+# Generate 2 years of data
+df = generator.generate_dataset(
+    start_date='2023-01-01',
+    periods_years=2,
+    output_file='data/hybrid_system_data.parquet'
+)
+```
+
+## Code Optimization
+
+1. Vectorized operations using NumPy for performance
+2. Efficient data storage using parquet format
+3. Modular design for easy maintenance and testing
+4. Configurable parameters via class initialization
+
+## Further Enhancements
+
+1. Add more sophisticated fault models
+2. Implement machine learning-based anomaly detection
+3. Add real-time data generation capabilities
+4. Include economic parameters (costs, revenue, etc.)
+5. Extend weather patterns with climate change scenarios
+
+## References
+
+1. Kenya Meteorological Department - Weather patterns
+2. IEEE 1547 - Grid interconnection standards
+3. IEC 61724 - PV system performance monitoring
+4. Battery storage system standards (IEC 62619)

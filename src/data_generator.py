@@ -51,7 +51,12 @@ class HybridSystemDataGenerator:
         dates = pd.date_range(start=start_date, periods=hours, freq='H')
         df = pd.DataFrame(index=dates)
         
-        # Add temporal features
+        # Add temporal features for weather
+        df['weather_hour'] = df.index.hour
+        df['weather_day_of_year'] = df.index.dayofyear
+        df['weather_is_weekend'] = df.index.weekday >= 5
+        
+        # Add temporal features for load
         df['hour'] = df.index.hour
         df['day_of_year'] = df.index.dayofyear
         df['is_weekend'] = df.index.weekday >= 5
@@ -72,7 +77,8 @@ class HybridSystemDataGenerator:
             else:
                 return 'dry'
         
-        df['season'] = df.index.map(get_season)
+        df['weather_season'] = df.index.map(get_season)
+        df['season'] = df['weather_season']  # Keep a copy for other components
         
         print("Generating weather conditions...")
         # Generate weather conditions FIRST
@@ -102,8 +108,8 @@ class HybridSystemDataGenerator:
         # Generate battery parameters
         battery_data = self.battery_sim.generate_output(
             df,
-            solar_data['power_output'],
-            load_data['active_power']
+            solar_data['power'],  
+            load_data['demand']   
         )
         for key, value in battery_data.items():
             df[f'battery_{key}'] = value
@@ -112,9 +118,9 @@ class HybridSystemDataGenerator:
         # Generate generator parameters
         generator_data = self.generator_sim.generate_output(
             df,
-            load_data['active_power'],
-            solar_data['power_output'],
-            battery_data['power_output']
+            load_data['demand'],  
+            solar_data['power'],  
+            battery_data['power'] 
         )
         for key, value in generator_data.items():
             df[f'generator_{key}'] = value
@@ -123,8 +129,8 @@ class HybridSystemDataGenerator:
         # Generate fault events
         system_state = {
             'grid_voltage': df['grid_voltage'],
-            'inverter_temp': df['solar_cell_temperature'],
-            'generator_runtime': df['generator_running_hours'],
+            'inverter_temp': df['solar_cell_temp'],  
+            'generator_runtime': df['generator_runtime'],
             'battery_soc': df['battery_soc']
         }
         fault_data = self.fault_sim.generate_fault_events(df, system_state)

@@ -46,15 +46,15 @@ class DieselGeneratorSimulator:
         # Initialize arrays
         hours = len(df)
         fuel_level = np.zeros(hours)
-        output_power = np.zeros(hours)
+        power = np.zeros(hours)  
         frequency = np.zeros(hours)
         temperature = np.zeros(hours)
-        running_hours = np.zeros(hours)
+        runtime = np.zeros(hours)  
         
         # Initial conditions
         fuel_level[0] = self.fuel_tank_capacity
         last_maintenance = 0
-        cumulative_running_hours = 0
+        cumulative_runtime = 0  
         
         for i in range(hours):
             # Calculate required power
@@ -65,8 +65,8 @@ class DieselGeneratorSimulator:
             
             if load_percent > 0:
                 # Generator is running
-                cumulative_running_hours += 1
-                running_hours[i] = cumulative_running_hours
+                cumulative_runtime += 1
+                runtime[i] = cumulative_runtime
                 
                 # Calculate fuel consumption
                 fuel_consumption = self.calculate_fuel_consumption(load_percent)
@@ -81,7 +81,7 @@ class DieselGeneratorSimulator:
                 
                 # Calculate output
                 efficiency = self.calculate_efficiency(load_percent)
-                output_power[i] = required_power * efficiency
+                power[i] = required_power * efficiency
                 
                 # Calculate frequency
                 base_freq = 60 + 0.1 * (load_percent - 0.5)
@@ -92,21 +92,19 @@ class DieselGeneratorSimulator:
                 temperature[i] = base_temp + np.random.normal(0, 2)
                 
                 # Maintenance effect
-                hours_since_maintenance = cumulative_running_hours - last_maintenance
+                hours_since_maintenance = cumulative_runtime - last_maintenance
                 if hours_since_maintenance >= self.maintenance_interval:
-                    last_maintenance = cumulative_running_hours
+                    last_maintenance = cumulative_runtime
                     efficiency *= 1.05  # Efficiency boost after maintenance
             else:
                 # Generator is off
                 if i > 0:
                     fuel_level[i] = fuel_level[i-1]
-                frequency[i] = 0
-                temperature[i] = df['temperature'][i]  # Ambient temperature
-        
+                    
         return {
+            'power': power,
             'fuel_level': fuel_level,
-            'output_power': output_power,
             'frequency': frequency,
             'temperature': temperature,
-            'running_hours': running_hours
+            'runtime': runtime  
         }
