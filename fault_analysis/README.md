@@ -44,7 +44,6 @@ The system can detect and predict several types of faults:
 
 - **Random Forest** - Primary model for fault detection and classification
 - **Gradient Boosting** - Alternative model for comparison
-- **Logistic Regression** - Baseline model for interpretability
 
 ### Evaluation Metrics
 
