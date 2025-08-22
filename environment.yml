@@ -18,5 +18,3 @@ dependencies:
   - ipykernel>=6.0.0
   - black>=22.0.0  # for code formatting
   - pytest>=6.0.0  # for testing
-  - pip:
-    - jupyter_contrib_nbextensions>=0.5.1
