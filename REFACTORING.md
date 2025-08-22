@@ -16,14 +16,13 @@ This document tracks the refactoring process of centralizing all hardcoded param
 - ✅ Updated battery_system.py to use config
 - ✅ Updated diesel_generator.py to use config
 - ✅ Updated fault_injection.py to use config
+- ✅ Updated load_profile.py to use config
+- ✅ Updated solar_pv.py to use config
 
 ### In Progress
-- 🔄 Updating load_profile.py to use config
-  - Added holidays configuration to handle special load patterns
+- 🔄 Updating validation.py to use config
 
 ### Pending
-- Solar PV (`solar_pv.py`)
-- Validation (`validation.py`)
 - Weather (`weather.py`)
 
 ### Not Included
