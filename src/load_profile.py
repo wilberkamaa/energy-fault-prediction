@@ -1,36 +1,27 @@
 import numpy as np
 from typing import Dict, Any
 import pandas as pd
+from src.config import config
 
 class LoadProfileGenerator:
     """Generates realistic load profiles for a hybrid energy system."""
     
-    def __init__(self, base_load_kw: float = 500, peak_load_kw: float = 2000, seed: int = 42):
-        self.base_load_kw = base_load_kw
-        self.peak_load_kw = peak_load_kw
+    def __init__(self, seed: int = 42):
+        # Load configuration
+        load_config = config['load_profile']
+        self.base_load_kw = load_config['base_load_kw']
+        self.peak_load_kw = load_config['peak_load_kw']
         np.random.seed(seed)
         
-        # Load parameters
-        self.weekday_factors = {
-            'morning_peak': {'hours': (6, 9), 'factor': 1.3},
-            'evening_peak': {'hours': (18, 22), 'factor': 1.5},
-            'night_valley': {'hours': (23, 5), 'factor': 0.7}
-        }
-        self.weekend_reduction = 0.8
+        # Load parameters from config
+        self.weekday_factors = load_config['weekday_factors']
+        self.weekend_reduction = load_config['weekend_reduction']
+        self.holidays = load_config['holidays']
+        self.seasonal_factors = load_config['seasonal_factors']
         
     def is_holiday(self, date: pd.Timestamp) -> bool:
-        """Check if date is a Kenyan holiday."""
-        holidays = [
-            # Major Kenyan holidays
-            (1, 1),    # New Year's Day
-            (5, 1),    # Labour Day
-            (6, 1),    # Madaraka Day
-            (10, 20),  # Mashujaa Day
-            (12, 12),  # Jamhuri Day
-            (12, 25),  # Christmas Day
-            (12, 26),  # Boxing Day
-        ]
-        return (date.month, date.day) in holidays
+        """Check if date is a holiday."""
+        return (date.month, date.day) in self.holidays
     
     def get_time_factor(self, hour: int, is_weekend: bool) -> float:
         """Calculate load factor based on time of day and week."""
@@ -50,12 +41,7 @@ class LoadProfileGenerator:
     
     def get_seasonal_factor(self, season: str) -> float:
         """Calculate load factor based on season."""
-        seasonal_factors = {
-            'long_rains': 0.9,   # Lower demand during long rains
-            'short_rains': 0.95,  # Slightly lower demand during short rains
-            'dry': 1.1           # Higher demand during dry season
-        }
-        return seasonal_factors.get(season, 1.0)
+        return self.seasonal_factors.get(season, 1.0)
     
     def generate_load(self, df) -> Dict[str, Any]:
         """Generate load profile with various factors."""
@@ -97,14 +83,17 @@ class LoadProfileGenerator:
             
             load_demand[i] = load
             
-            # Generate power factor (typically 0.8 to 0.95)
-            base_pf = 0.85 + 0.1 * np.sin(2 * np.pi * hour / 24)
-            power_factor[i] = base_pf + np.random.normal(0, 0.02)
+            # Generate power factor using config values
+            pf_config = config['load_profile']['power_factor']
+            base_pf = pf_config['base'] + pf_config['variation'] * np.sin(2 * np.pi * hour / 24)
+            power_factor[i] = base_pf + np.random.normal(0, pf_config['noise_std'])
         
         # Clip power factor to realistic range
-        power_factor = np.clip(power_factor, 0.8, 0.95)
+        power_factor = np.clip(power_factor, 
+                              config['load_profile']['power_factor']['min'],
+                              config['load_profile']['power_factor']['max'])
         
         return {
-            'demand': load_demand,  # Changed from active_power to demand
+            'demand': load_demand,
             'power_factor': power_factor
         }
