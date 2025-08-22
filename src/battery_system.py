@@ -1,232 +1,100 @@
 import numpy as np
 from typing import Dict, Any
+from src.config import config
 
 class BatterySystemSimulator:
-    """Simulates a 3 MWh battery energy storage system (2 hours of solar capacity)."""
+    """Simulates a battery energy storage system."""
     
-    def __init__(self, capacity_kwh: float = 3000, seed: int = 42):
-        self.capacity_kwh = capacity_kwh
-        self.max_power_kw = 750  # 50% of solar capacity
-        self.min_soc = 0.1  # Lower minimum SOC for more usable capacity
-        self.max_soc = 0.95  # Maximum SOC to prevent constant 100%
+    def __init__(self, seed: int = 42):
         np.random.seed(seed)
         
-        # System parameters
-        self.charging_efficiency = 0.95  # Modern lithium-ion
-        self.discharging_efficiency = 0.95  # Modern lithium-ion
-        self.self_discharge_rate = 0.0005  # 0.05% per hour
-        self.nominal_voltage = 800  # Higher voltage for better efficiency
-        self.cycles = 0
-        self.degradation_per_cycle = 0.00005  # Modern batteries degrade slower
+        # Load battery parameters from config
+        battery_config = config['battery']
+        self.capacity_kwh = battery_config['capacity_kwh']
+        self.max_power_kw = battery_config['max_power_kw']
+        self.min_soc = battery_config['min_soc']
+        self.max_soc = battery_config['max_soc']
+        self.charging_efficiency = battery_config['charging_efficiency']
+        self.discharging_efficiency = battery_config['discharging_efficiency']
+        self.self_discharge_rate = battery_config['self_discharge_rate']
+        self.nominal_voltage = battery_config['nominal_voltage']
+        self.degradation_per_cycle = battery_config['degradation_per_cycle']
+        self.charge_rate_factor = battery_config['charge_rate_factor']
+        self.discharge_rate_factor = battery_config['discharge_rate_factor']
         
-        # Dynamic behavior parameters
-        self.charge_rate_factor = {
-            'low': 1.0,    # Full power below 30% SOC
-            'mid': 0.8,    # 80% power between 30-70% SOC
-            'high': 0.5    # 50% power above 70% SOC
-        }
-        self.discharge_rate_factor = {
-            'low': 0.5,    # 50% power below 30% SOC
-            'mid': 0.8,    # 80% power between 30-70% SOC
-            'high': 1.0    # Full power above 70% SOC
-        }
+        # Initialize state
+        self.state_of_charge = self.max_soc
+        self.cycle_count = 0
+        self.remaining_capacity = self.capacity_kwh
         
-    def temperature_effect(self, temperature: float) -> float:
-        """Calculate temperature effect on capacity."""
-        # Modern batteries have better temperature tolerance
-        # Capacity decreases by 1% per 10°C deviation
-        temp_diff = abs(temperature - 25)
-        return 1 - (0.001 * temp_diff)
-    
-    def calculate_voltage(self, soc: float, current: float) -> float:
-        """Calculate battery voltage based on SOC and current."""
-        # Simple battery voltage model
-        voltage = self.nominal_voltage * (0.9 + 0.2 * soc)
-        # Add internal resistance effect
-        voltage -= current * 0.1  # Simplified internal resistance effect
-        return voltage
-    
-    def get_charge_rate_factor(self, soc: float) -> float:
-        """Get charging rate factor based on SOC."""
-        if soc < 0.3:
-            return self.charge_rate_factor['low']
-        elif soc < 0.7:
-            return self.charge_rate_factor['mid']
-        else:
-            return self.charge_rate_factor['high']
-    
-    def get_discharge_rate_factor(self, soc: float) -> float:
-        """Get discharging rate factor based on SOC."""
-        if soc < 0.3:
-            return self.discharge_rate_factor['low']
-        elif soc < 0.7:
-            return self.discharge_rate_factor['mid']
-        else:
-            return self.discharge_rate_factor['high']
-    
-    def generate_output(self, df, pv_output: np.ndarray, 
-                       load_demand: np.ndarray) -> Dict[str, Any]:
-        """Generate battery system output parameters."""
-        hours = len(df)
+    def calculate_power_limits(self) -> Dict[str, float]:
+        """Calculate current charge/discharge power limits based on SOC."""
+        # Charging limit
+        soc_headroom = self.max_soc - self.state_of_charge
+        charge_limit = min(
+            self.max_power_kw * self.charge_rate_factor,
+            (soc_headroom * self.capacity_kwh) / self.charging_efficiency
+        )
         
-        # Initialize arrays
-        soc = np.zeros(hours)  # State of charge
-        power = np.zeros(hours)  # Power output (positive for discharge)
-        voltage = np.zeros(hours)
-        current = np.zeros(hours)
-        temperature = np.zeros(hours)
-        
-        # Initial conditions - start at 50% for balanced behavior
-        soc[0] = 0.5
-        last_soc = soc[0]
-        
-        # Create a forced pattern of SOC values to ensure full range
-        target_soc_pattern = np.zeros(24)  # 24 hours in a day
-        # Morning: charge from low to high
-        target_soc_pattern[0:6] = np.linspace(0.2, 0.3, 6)  # Early morning - low SOC
-        target_soc_pattern[6:12] = np.linspace(0.3, 0.8, 6)  # Morning - charging
-        # Afternoon: stay high
-        target_soc_pattern[12:18] = np.linspace(0.8, 0.9, 6)  # Afternoon - high SOC
-        # Evening: discharge
-        target_soc_pattern[18:24] = np.linspace(0.9, 0.2, 6)  # Evening - discharging
-        
-        # Force charge/discharge cycles - alternate every few hours
-        charge_pattern = np.zeros(24, dtype=bool)
-        charge_pattern[5:12] = True   # Morning charging
-        charge_pattern[14:16] = True  # Afternoon top-up
-        
-        # Tracking variables for more dynamic behavior
-        forced_mode_counter = 0
-        force_charge = False
-        force_discharge = False
-        
-        day_of_year = df.index.dayofyear.values
-        hour_of_day = df.index.hour.values
-        
-        for i in range(hours):
-            # Temperature affects capacity
-            temp_factor = self.temperature_effect(df['weather_temperature'].iloc[i])
-            effective_capacity = self.capacity_kwh * temp_factor
-            
-            # Get hour of day and determine target SOC
-            hour = hour_of_day[i]
-            target_soc = target_soc_pattern[hour]
-            
-            # Add variation to target SOC
-            target_soc += np.random.normal(0, 0.05)
-            target_soc = np.clip(target_soc, 0.15, 0.9)
-            
-            # Determine if we need to force a mode change for more dynamic behavior
-            forced_mode_counter += 1
-            if forced_mode_counter >= 12:  # Every 12 hours
-                forced_mode_counter = 0
-                # Switch between forced charge and discharge
-                if np.random.random() < 0.5:
-                    force_charge = True
-                    force_discharge = False
-                else:
-                    force_charge = False
-                    force_discharge = True
-            
-            # Determine charge mode
-            if force_charge:
-                charge_mode = True
-            elif force_discharge:
-                charge_mode = False
-            else:
-                # Base charge mode on time of day pattern
-                charge_mode = charge_pattern[hour]
-            
-            # Override based on SOC limits
-            if last_soc >= 0.9:  # Force discharge if too full
-                charge_mode = False
-                force_charge = False
-            elif last_soc <= 0.15:  # Force charge if too empty
-                charge_mode = True
-                force_discharge = False
-                
-            # Calculate power balance
-            power_balance = pv_output[i] - load_demand[i]
-            
-            # Add small random variations
-            power_balance += np.random.normal(0, 30)
-            
-            # Calculate power based on mode
-            if charge_mode and last_soc < self.max_soc - 0.05:  # Charge
-                # Calculate charge power
-                soc_diff = target_soc - last_soc
-                charge_factor = min(1.0, max(0.2, abs(soc_diff) * 5))  # Higher power for bigger difference
-                
-                # Calculate maximum charging power
-                max_charge = min(
-                    abs(power_balance) if power_balance > 0 else self.max_power_kw * 0.4,
-                    self.max_power_kw * charge_factor,
-                    (self.max_soc - last_soc) * effective_capacity / self.charging_efficiency
-                )
-                
-                # Add randomness to charging power
-                charge_power = max_charge * (0.6 + 0.4 * np.random.random())
-                
-                # Negative power means charging
-                power[i] = -charge_power
-                
-                # Calculate energy stored (accounting for efficiency)
-                energy_stored = charge_power * self.charging_efficiency
-                
-            elif not charge_mode and last_soc > self.min_soc + 0.05:  # Discharge
-                # Calculate discharge power
-                soc_diff = last_soc - target_soc
-                discharge_factor = min(1.0, max(0.2, abs(soc_diff) * 5))  # Higher power for bigger difference
-                
-                # Calculate maximum discharge power
-                max_discharge = min(
-                    abs(power_balance) if power_balance < 0 else self.max_power_kw * 0.4,
-                    self.max_power_kw * discharge_factor,
-                    (last_soc - self.min_soc) * effective_capacity * self.discharging_efficiency
-                )
-                
-                # Add randomness to discharge power
-                discharge_power = max_discharge * (0.6 + 0.4 * np.random.random())
-                
-                # Positive power means discharging
-                power[i] = discharge_power
-                
-                # Calculate energy used (accounting for efficiency)
-                energy_stored = -discharge_power / self.discharging_efficiency
-                
-            else:  # Idle - small self-discharge only
-                power[i] = 0
-                energy_stored = 0
-            
-            # Update state of charge
-            if i < hours - 1:
-                # Update SOC based on energy flow
-                soc[i + 1] = last_soc - energy_stored / effective_capacity
-                
-                # Account for self-discharge
-                soc[i + 1] *= (1 - self.self_discharge_rate)
-                
-                # Ensure SOC stays within bounds
-                soc[i + 1] = np.clip(soc[i + 1], self.min_soc, self.max_soc)
-                
-                # Add small random fluctuations for realism
-                soc[i + 1] += np.random.normal(0, 0.01)  # +/- 1% random noise
-                soc[i + 1] = np.clip(soc[i + 1], self.min_soc, self.max_soc)  # Re-clip after noise
-                
-                last_soc = soc[i + 1]
-            
-            # Calculate electrical parameters
-            current[i] = power[i] * 1000 / self.nominal_voltage  # Convert kW to W
-            voltage[i] = self.calculate_voltage(soc[i], current[i])
-            
-            # Battery temperature (simplified model)
-            temp_rise = 0.05 * abs(power[i])  # Temperature rise due to power flow
-            temperature[i] = df['weather_temperature'].iloc[i] + temp_rise
+        # Discharging limit
+        available_energy = (self.state_of_charge - self.min_soc) * self.capacity_kwh
+        discharge_limit = min(
+            self.max_power_kw * self.discharge_rate_factor,
+            available_energy * self.discharging_efficiency
+        )
         
         return {
-            'soc': soc,
-            'power': power,  
-            'voltage': voltage,
+            'charge_limit': charge_limit,
+            'discharge_limit': discharge_limit
+        }
+    
+    def update_state(self, power_kw: float, time_step_hours: float = 1.0) -> None:
+        """Update battery state based on power flow and time step."""
+        # Calculate energy change
+        if power_kw > 0:  # Charging
+            energy_change = power_kw * time_step_hours * self.charging_efficiency
+        else:  # Discharging
+            energy_change = power_kw * time_step_hours / self.discharging_efficiency
+        
+        # Update SOC
+        energy_capacity = self.capacity_kwh * (1 - self.degradation_per_cycle * self.cycle_count)
+        soc_change = energy_change / energy_capacity
+        self.state_of_charge = np.clip(
+            self.state_of_charge + soc_change - self.self_discharge_rate * time_step_hours,
+            self.min_soc,
+            self.max_soc
+        )
+        
+        # Update cycle count (partial cycles)
+        if power_kw != 0:
+            self.cycle_count += abs(soc_change) / 2  # Half cycle for each direction
+        
+        # Update remaining capacity
+        self.remaining_capacity = energy_capacity
+    
+    def generate_output(self, power_request: float, time_step_hours: float = 1.0) -> Dict[str, Any]:
+        """Generate battery system output parameters."""
+        # Get current power limits
+        limits = self.calculate_power_limits()
+        
+        # Limit power request to available capacity
+        if power_request > 0:  # Charging
+            power = min(power_request, limits['charge_limit'])
+        else:  # Discharging
+            power = max(power_request, -limits['discharge_limit'])
+        
+        # Update battery state
+        self.update_state(power, time_step_hours)
+        
+        # Calculate current
+        current = power * 1000 / self.nominal_voltage if power != 0 else 0
+        
+        return {
+            'power': power,
             'current': current,
-            'temperature': temperature
+            'voltage': self.nominal_voltage,
+            'soc': self.state_of_charge,
+            'temperature': 25 + abs(current) * 0.1,  # Simple temperature model
+            'remaining_capacity': self.remaining_capacity,
+            'cycle_count': self.cycle_count
         }
