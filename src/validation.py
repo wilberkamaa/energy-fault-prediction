@@ -1,35 +1,14 @@
 import numpy as np
 import pandas as pd
 from typing import Dict, Any
+from src.config import config
 
 class DataValidator:
     """Validates and cleans the generated data."""
     
     def __init__(self):
-        # Define valid ranges for different parameters
-        self.valid_ranges = {
-            'weather_temperature': (-10, 45),  # °C
-            'weather_humidity': (0, 100),  # %
-            'weather_cloud_cover': (0, 100),  # %
-            'weather_wind_speed': (0, 30),  # m/s
-            'solar_power': (0, 1500),  # kW
-            'solar_cell_temp': (0, 85),  # °C
-            'battery_soc': (0, 1),  # 0-1
-            'battery_power': (-200, 200),  # kW
-            'battery_voltage': (350, 450),  # V
-            'battery_current': (-500, 500),  # A
-            'battery_temperature': (0, 60),  # °C
-            'generator_power': (0, 2000),  # kW
-            'generator_fuel_level': (0, 5000),  # L
-            'generator_frequency': (55, 65),  # Hz
-            'generator_temperature': (0, 120),  # °C
-            'grid_voltage': (0.8 * 25000, 1.2 * 25000),  # V
-            'grid_frequency': (48, 52),  # Hz
-            'grid_power': (-2000, 2000),  # kW
-            'load_demand': (0, 2000),  # kW
-            'load_power_factor': (0.8, 1.0),  # unitless
-            'fault_severity': (0, 1)  # unitless
-        }
+        # Get validation ranges from config
+        self.valid_ranges = config['validation']['valid_ranges']
     
     def validate_and_clean(self, df: pd.DataFrame) -> pd.DataFrame:
         """Validate and clean the data, ensuring all values are within valid ranges."""
@@ -50,22 +29,23 @@ class DataValidator:
         )
         total_load = df['load_demand']
         
-        # Allow for small imbalances (1% of max load)
-        tolerance = 0.01 * df['load_demand'].max()
+        # Allow for small imbalances (from config)
+        tolerance = config['validation']['power_balance_tolerance'] * df['load_demand'].max()
         df['power_balanced'] = (total_generation - total_load).abs() <= tolerance
         
         # Check for NaN values
         if df.isna().any().any():
             print("Warning: NaN values found in dataset")
-            df = df.fillna(0)  # Replace NaN with 0
+            df = df.fillna(config['validation']['nan_fill_value'])  # Replace NaN with configured value
         
         return df
     
-    def check_power_balance(self, data: Dict[str, Any], tolerance: float = 0.01) -> bool:
-        """
-        Verify that power generation matches load demand within tolerance.
-        Returns True if balance is maintained, False otherwise.
-        """
+    def check_power_balance(self, data: Dict[str, Any], tolerance: float = None) -> bool:
+        """Verify that power generation matches load demand within tolerance.
+        Returns True if balance is maintained, False otherwise."""
+        if tolerance is None:
+            tolerance = config['validation']['power_balance_tolerance']
+            
         total_generation = 0
         
         # Sum up all generation sources

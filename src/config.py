@@ -112,7 +112,8 @@ config = {
             'load_power_factor': (0.8, 1.0),
             'fault_severity': (0, 1)
         },
-        'power_balance_tolerance': 0.01
+        'power_balance_tolerance': 0.01,
+        'nan_fill_value': 0
     },
     'weather': {
         'season_params': {
