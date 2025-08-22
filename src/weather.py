@@ -13,6 +13,8 @@ class WeatherSimulator:
         # Get seasonal parameters from config
         self.season_params = config['weather']['season_params']
         self.base_temperature = config['weather']['base_temperature']
+        self.temperature_amplitude = config['weather']['temperature_amplitude']
+        self.temperature_peak_hour = config['weather']['temperature_peak_hour']  # Add this line
 
     def generate_weather(self, df) -> Dict[str, Any]:
         """
