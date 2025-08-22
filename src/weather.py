@@ -1,18 +1,17 @@
 import numpy as np
 from typing import Dict, Any
+from src.config import config
 
 class WeatherSimulator:
     """Simulates weather conditions for Kenya's climate."""
     
-    def __init__(self, seed: int = 42):
+    def __init__(self, seed: int = None):
+        if seed is None:
+            seed = config['weather']['seed']
         np.random.seed(seed)
         
-        # Kenya's seasonal parameters
-        self.season_params = {
-            'long_rains': {'cloud_cover': (0.4, 0.6), 'temp_range': (20, 28)},
-            'short_rains': {'cloud_cover': (0.3, 0.5), 'temp_range': (22, 30)},
-            'dry': {'cloud_cover': (0.1, 0.3), 'temp_range': (25, 33)}
-        }
+        # Get seasonal parameters from config
+        self.season_params = config['weather']['season_params']
 
     def generate_weather(self, df) -> Dict[str, Any]:
         """
@@ -24,19 +23,20 @@ class WeatherSimulator:
         Returns:
             Dictionary containing weather parameters
         """
+        weather_config = config['weather']
+        
         # Base temperature pattern (daily cycle)
-        temp_base = 25 + 5 * np.sin(2 * np.pi * (df['weather_hour'] - 14) / 24)  # Peak at 2 PM
+        base_temp = weather_config['base_temperature']
+        temp_amplitude = weather_config['temperature_amplitude']
+        peak_hour = weather_config['temperature_peak_hour']
+        temp_base = base_temp + temp_amplitude * np.sin(2 * np.pi * (df['weather_hour'] - peak_hour) / 24)
         
         # Add seasonal variation
-        season_temp_offset = {
-            'long_rains': -2,
-            'short_rains': 0,
-            'dry': 2
-        }
+        season_temp_offset = weather_config['season_temperature_offset']
         temp_seasonal = df['weather_season'].map(season_temp_offset)
         
         # Add random variations
-        temp_noise = np.random.normal(0, 0.5, len(df))
+        temp_noise = np.random.normal(0, weather_config['temperature_noise_std'], len(df))
         temperature = temp_base + temp_seasonal + temp_noise
         
         # Generate cloud cover based on season and time of day
@@ -46,16 +46,24 @@ class WeatherSimulator:
             base_prob = np.random.uniform(*self.season_params[season]['cloud_cover'])
             # More clouds in early morning and late afternoon
             hour = df['weather_hour'].iloc[i]
-            hour_factor = 0.2 * np.sin(2 * np.pi * (hour - 6) / 12)
+            cloud_hour_amplitude = weather_config['cloud_hour_amplitude']
+            cloud_peak_hour = weather_config['cloud_peak_hour']
+            hour_factor = cloud_hour_amplitude * np.sin(2 * np.pi * (hour - cloud_peak_hour) / 12)
             cloud_cover[i] = np.clip(base_prob + hour_factor, 0, 1)
         
         # Generate humidity
-        humidity_base = 60 + 20 * np.sin(2 * np.pi * df['weather_hour'] / 24)
-        humidity = humidity_base + 10 * cloud_cover + np.random.normal(0, 2, len(df))
-        humidity = np.clip(humidity, 30, 100)
+        humidity_base = weather_config['humidity_base']
+        humidity_amplitude = weather_config['humidity_amplitude']
+        humidity_base = humidity_base + humidity_amplitude * np.sin(2 * np.pi * df['weather_hour'] / 24)
+        humidity_cloud_factor = weather_config['humidity_cloud_factor']
+        humidity_noise_std = weather_config['humidity_noise_std']
+        humidity = humidity_base + humidity_cloud_factor * cloud_cover + np.random.normal(0, humidity_noise_std, len(df))
+        humidity = np.clip(humidity, weather_config['humidity_min'], weather_config['humidity_max'])
         
         # Generate wind speed (m/s)
-        wind_speed = np.random.weibull(2, len(df)) * 3  # Weibull distribution for wind
+        wind_shape = weather_config['wind_weibull_shape']
+        wind_scale = weather_config['wind_weibull_scale']
+        wind_speed = np.random.weibull(wind_shape, len(df)) * wind_scale
         
         return {
             'temperature': temperature,

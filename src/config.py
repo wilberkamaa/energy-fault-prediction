@@ -130,6 +130,11 @@ config = {
             'long_rains': -2,
             'short_rains': 0,
             'dry': 2
-        }
+        },
+        'seed': 42,
+        'base_temperature': 25,
+        'temperature_amplitude': 5,
+        'temperature_peak_hour': 14,
+        'temperature_noise_std': 0.5,
     }
 }
