@@ -19,6 +19,7 @@ This document tracks the refactoring process of centralizing all hardcoded param
 
 ### In Progress
 - 🔄 Updating load_profile.py to use config
+  - Added holidays configuration to handle special load patterns
 
 ### Pending
 - Solar PV (`solar_pv.py`)
@@ -38,6 +39,10 @@ The new configuration system is organized by component:
 - Fault injection parameters
 - Grid connection parameters
 - Load profile parameters
+  - Base and peak loads
+  - Weekday/weekend factors
+  - Seasonal adjustments
+  - Holiday dates
 - Solar PV parameters
 - Validation parameters
 - Weather parameters
@@ -58,3 +63,4 @@ component_config = config['component_name']
 ## Notes
 - `grid_connection.py` will be removed in a future update
 - Grid power can be disabled using `include_grid` flag in configuration
+- Holidays are now configured as month-day tuples for better reusability across years
