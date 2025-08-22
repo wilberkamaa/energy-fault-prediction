@@ -23,6 +23,11 @@ This document tracks the testing progress, issues encountered, and future improv
 - **Fix**: Updated import to use `FaultInjectionSystem` which is the actual class name in fault_injection.py
 - **Details**: The test was trying to import a non-existent class. Also removed assertion for `thresholds` attribute which is not directly stored on the class instance.
 
+### 2025-08-22
+- **Issue**: `AttributeError: 'DataValidator' object has no attribute 'power_balance_tolerance'` in `tests/test_config_integration.py`.
+- **Fix**: Initialized `power_balance_tolerance` in the `DataValidator`'s `__init__` method in `src/validation.py`.
+- **Details**: The test expected `power_balance_tolerance` to be an attribute of the `DataValidator` object, but it was not being initialized in the constructor.
+
 ## Future Improvements
 
 ### Test Coverage

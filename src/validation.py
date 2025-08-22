@@ -9,6 +9,7 @@ class DataValidator:
     def __init__(self):
         # Get validation ranges from config
         self.valid_ranges = config['validation']['valid_ranges']
+        self.power_balance_tolerance = config['validation']['power_balance_tolerance']
     
     def validate_and_clean(self, df: pd.DataFrame) -> pd.DataFrame:
         """Validate and clean the data, ensuring all values are within valid ranges."""
