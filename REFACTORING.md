@@ -18,12 +18,11 @@ This document tracks the refactoring process of centralizing all hardcoded param
 - ✅ Updated fault_injection.py to use config
 - ✅ Updated load_profile.py to use config
 - ✅ Updated solar_pv.py to use config
+- ✅ Updated validation.py to use config
+- ✅ Updated weather.py to use config
 
 ### In Progress
-- 🔄 Updating validation.py to use config
-
-### Pending
-- Weather (`weather.py`)
+- 🔄 Testing all components after refactoring
 
 ### Not Included
 - `grid_connection.py` (scheduled for removal)
