@@ -1,132 +1,111 @@
 import numpy as np
 from typing import Dict, Any
+from src.config import config
 
 class DieselGeneratorSimulator:
-    """Simulates a 1 MVA diesel generator system for backup power."""
+    """Simulates a diesel generator with realistic behavior."""
     
-    def __init__(self, capacity_kva: float = 1000, seed: int = 42):
-        self.capacity_kva = capacity_kva
-        self.fuel_tank_capacity = 2000  # Smaller tank for backup use
+    def __init__(self, seed: int = 42):
         np.random.seed(seed)
         
-        # Operating parameters
-        self.min_load_percent = 0.40  # Higher minimum for better efficiency
-        self.min_runtime_hours = 2    # Minimum runtime once started
-        self.fuel_consumption_rate = {
-            'idle': 8,       # More efficient modern engine
-            'full_load': 80  # Better fuel economy
-        }
-        self.maintenance_interval = 750  # Modern engine needs less maintenance
+        # Load generator parameters from config
+        gen_config = config['diesel_generator']
+        self.capacity_kva = gen_config['capacity_kva']
+        self.fuel_tank_capacity = gen_config['fuel_tank_capacity']
+        self.min_load_percent = gen_config['min_load_percent']
+        self.min_runtime_hours = gen_config['min_runtime_hours']
+        self.fuel_consumption_rate = gen_config['fuel_consumption_rate']
+        self.maintenance_interval = gen_config['maintenance_interval']
         
+        # Initialize state
+        self.running = False
+        self.runtime_hours = 0
+        self.fuel_level = self.fuel_tank_capacity
+        self.last_maintenance = 0
+        self.temperature = 25  # Starting at ambient temperature
+    
     def calculate_fuel_consumption(self, load_percent: float) -> float:
-        """Calculate fuel consumption based on load percentage."""
-        if load_percent < self.min_load_percent:
-            return 0  # Don't run below minimum load
+        """Calculate fuel consumption based on load."""
+        if not self.running:
+            return 0.0
         
-        # Quadratic consumption curve for better part-load efficiency
-        norm_load = (load_percent - self.min_load_percent) / (1 - self.min_load_percent)
-        consumption = (self.fuel_consumption_rate['idle'] + 
-                      (self.fuel_consumption_rate['full_load'] - 
-                       self.fuel_consumption_rate['idle']) * (0.8 * norm_load + 0.2 * norm_load**2))
-        return consumption
+        # Linear interpolation between idle and full load consumption
+        fuel_rate = (
+            self.fuel_consumption_rate['idle'] +
+            (self.fuel_consumption_rate['full_load'] - self.fuel_consumption_rate['idle']) *
+            load_percent
+        )
+        
+        return fuel_rate
     
-    def calculate_efficiency(self, load_percent: float) -> float:
-        """Calculate generator efficiency based on load percentage."""
-        # Modern diesel generator efficiency curve
-        if load_percent < self.min_load_percent:
-            return 0
-        elif load_percent > 0.9:
-            return 0.42  # Higher peak efficiency
-        else:
-            # Peak efficiency around 80% load
-            return 0.40 * np.sin(np.pi * (load_percent - 0.3) / 1.2) + 0.35
+    def needs_maintenance(self) -> bool:
+        """Check if maintenance is needed based on runtime."""
+        return (self.runtime_hours - self.last_maintenance) >= self.maintenance_interval
     
-    def generate_output(self, df, load_demand: np.ndarray, 
-                       pv_output: np.ndarray,
-                       battery_output: np.ndarray) -> Dict[str, Any]:
+    def start_generator(self) -> bool:
+        """Attempt to start the generator."""
+        if self.fuel_level <= 0:
+            return False
+        
+        if self.needs_maintenance():
+            return False
+        
+        self.running = True
+        return True
+    
+    def stop_generator(self) -> None:
+        """Stop the generator."""
+        self.running = False
+    
+    def generate_output(self, power_request: float, time_step_hours: float = 1.0) -> Dict[str, Any]:
         """Generate generator output parameters."""
-        # Initialize arrays
-        hours = len(df)
-        fuel_level = np.zeros(hours)
-        power = np.zeros(hours)  
-        frequency = np.zeros(hours)
-        temperature = np.zeros(hours)
-        runtime = np.zeros(hours)  
+        # Calculate load percentage
+        load_percent = abs(power_request) / self.capacity_kva
         
-        # Initial conditions
-        fuel_level[0] = self.fuel_tank_capacity
-        last_maintenance = 0
-        cumulative_runtime = 0
-        consecutive_runtime = 0  # Track consecutive runtime hours
-        generator_on = False     # Track if generator is currently running
+        # Check if generator should be running
+        should_run = load_percent >= self.min_load_percent
         
-        for i in range(hours):
-            # Calculate required power
-            required_power = load_demand[i]  # This is now the remaining load after solar, battery, and grid
-            
-            # Calculate load percentage
-            load_percent = min(required_power / self.capacity_kva, 1.0)
-            
-            # Determine if generator should run
-            should_run = False
-            
-            # If generator is already running, maintain minimum runtime
-            if generator_on and consecutive_runtime < self.min_runtime_hours:
-                should_run = True
-            # Otherwise, only run if load is significant and above minimum threshold
-            elif load_percent >= self.min_load_percent:
-                should_run = True
-            # Special case: grid is unavailable and we have significant load
-            elif 'grid_available' in df.columns and not df['grid_available'].iloc[i] and load_percent > 0.1:
-                should_run = True
-            
-            if should_run:
-                # Generator is running
-                generator_on = True
-                cumulative_runtime += 1
-                consecutive_runtime += 1
-                runtime[i] = cumulative_runtime
-                
-                # Calculate fuel consumption
-                fuel_consumption = self.calculate_fuel_consumption(max(load_percent, self.min_load_percent))
-                
-                # Update fuel level
-                if i > 0:
-                    fuel_level[i] = fuel_level[i-1] - fuel_consumption
-                
-                # Automatic refill when below 20%
-                if fuel_level[i] < 0.2 * self.fuel_tank_capacity:
-                    fuel_level[i] = self.fuel_tank_capacity
-                
-                # Calculate output
-                efficiency = self.calculate_efficiency(max(load_percent, self.min_load_percent))
-                power[i] = required_power
-                
-                # Calculate frequency
-                base_freq = 60 + 0.1 * (load_percent - 0.5)
-                frequency[i] = base_freq + np.random.normal(0, 0.01)
-                
-                # Calculate temperature
-                base_temp = 80 + 40 * load_percent
-                temperature[i] = base_temp + np.random.normal(0, 2)
-                
-                # Maintenance effect
-                hours_since_maintenance = cumulative_runtime - last_maintenance
-                if hours_since_maintenance >= self.maintenance_interval:
-                    last_maintenance = cumulative_runtime
-                    efficiency *= 1.05  # Efficiency boost after maintenance
+        # Start or stop generator based on load
+        if should_run and not self.running:
+            self.start_generator()
+        elif not should_run and self.running:
+            if self.runtime_hours % self.min_runtime_hours < 1:
+                should_run = True  # Keep running to meet minimum runtime
             else:
-                # Generator is off
-                generator_on = False
-                consecutive_runtime = 0
-                
-                if i > 0:
-                    fuel_level[i] = fuel_level[i-1]
-                    
+                self.stop_generator()
+        
+        # Calculate output parameters
+        if self.running and self.fuel_level > 0:
+            # Update runtime
+            self.runtime_hours += time_step_hours
+            
+            # Calculate fuel consumption
+            fuel_consumption = self.calculate_fuel_consumption(load_percent) * time_step_hours
+            self.fuel_level = max(0, self.fuel_level - fuel_consumption)
+            
+            # Calculate temperature (simplified model)
+            target_temp = 25 + 60 * load_percent  # Higher load = higher temp
+            self.temperature += (target_temp - self.temperature) * 0.1
+            
+            # Calculate frequency variation (simplified model)
+            frequency = 50 + np.random.normal(0, 0.1) - 0.5 * load_percent
+            
+            # Set output power based on available fuel
+            if self.fuel_level > 0:
+                output_power = power_request
+            else:
+                output_power = 0
+                self.stop_generator()
+        else:
+            output_power = 0
+            frequency = 0
+            
         return {
-            'power': power,
-            'fuel_level': fuel_level,
-            'frequency': frequency,
-            'temperature': temperature,
-            'runtime': runtime  
+            'running': self.running,
+            'power': output_power,
+            'frequency': frequency if self.running else 0,
+            'temperature': self.temperature,
+            'fuel_level': self.fuel_level,
+            'runtime': self.runtime_hours,
+            'needs_maintenance': self.needs_maintenance()
         }
