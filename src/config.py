@@ -67,6 +67,16 @@ config = {
             'long_rains': 0.9,
             'short_rains': 0.95,
             'dry': 1.1
+        },
+        'holidays': {
+            # Major Kenyan holidays
+            (1, 1),    # New Year's Day
+            (5, 1),    # Labour Day
+            (6, 1),    # Madaraka Day
+            (10, 20),  # Mashujaa Day
+            (12, 12),  # Jamhuri Day
+            (12, 25),  # Christmas Day
+            (12, 26),  # Boxing Day
         }
     },
     'solar_pv': {
