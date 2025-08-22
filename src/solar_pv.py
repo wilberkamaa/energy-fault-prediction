@@ -1,22 +1,25 @@
 import numpy as np
 from typing import Dict, Any
 import pandas as pd
+from src.config import config
 
 class SolarPVSimulator:
-    """Simulates a 1500 kW Solar PV system with high-efficiency panels."""
+    """Simulates a Solar PV system with high-efficiency panels."""
     
-    def __init__(self, capacity_kw: float = 1500, seed: int = 42):
-        self.capacity_kw = capacity_kw
+    def __init__(self, seed: int = 42):
+        # Load configuration
+        solar_config = config['solar_pv']
+        self.capacity_kw = solar_config['capacity_kw']
         np.random.seed(seed)
         
-        # System parameters
-        self.nominal_efficiency = 0.21  # High-efficiency panels
-        self.temp_coefficient = -0.003  # Better temperature performance
-        self.dust_loss_rate = 0.0005   # Improved cleaning schedule
-        self.noct = 42  # Better thermal design
-        self.base_efficiency = 0.23  # Premium panels
-        self.rated_power = capacity_kw
-        self.system_efficiency = 0.85  # Modern inverters
+        # System parameters from config
+        self.nominal_efficiency = solar_config['nominal_efficiency']
+        self.temp_coefficient = solar_config['temp_coefficient']
+        self.dust_loss_rate = solar_config['dust_loss_rate']
+        self.noct = solar_config['noct']
+        self.base_efficiency = solar_config['base_efficiency']
+        self.rated_power = self.capacity_kw
+        self.system_efficiency = solar_config['system_efficiency']
         
     def calculate_irradiance(self, df):
         """Calculate solar irradiance based on time and weather."""
