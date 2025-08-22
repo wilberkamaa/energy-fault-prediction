@@ -13,15 +13,14 @@ This document tracks the refactoring process of centralizing all hardcoded param
 
 ### Completed
 - ✅ Created centralized `config.py` with all system parameters
+- ✅ Updated battery_system.py to use config
+- ✅ Updated diesel_generator.py to use config
+- ✅ Updated fault_injection.py to use config
 
 ### In Progress
-- 🔄 Updating component files to use centralized configuration
+- 🔄 Updating load_profile.py to use config
 
 ### Pending
-- Battery System (`battery_system.py`)
-- Diesel Generator (`diesel_generator.py`)
-- Fault Injection (`fault_injection.py`)
-- Load Profile (`load_profile.py`)
 - Solar PV (`solar_pv.py`)
 - Validation (`validation.py`)
 - Weather (`weather.py`)
