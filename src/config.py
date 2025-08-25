@@ -42,7 +42,7 @@ config = {
         }
     },
     'grid': {
-        'include_grid': True,
+        'include_grid': False,
         'nominal_voltage': 25000,
         'base_reliability': 0.95,
         'voltage_variation': 0.1,
