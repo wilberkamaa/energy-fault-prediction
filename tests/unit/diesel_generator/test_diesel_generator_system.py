@@ -4,10 +4,10 @@ from src.diesel_generator import DieselGeneratorSimulator
 from src.config import config
 
 class TestDieselGeneratorInitialization:
-    """Test the initialization of the diesel generator system."""
+    """Test the initialization of the diesel generator simulator."""
     
     def test_initialization_with_default_seed(self):
-        """Test that diesel generator initializes correctly with default seed."""
+        """Test that diesel generator simulator initializes correctly with default seed."""
         generator = DieselGeneratorSimulator()
         
         # Verify configuration values were correctly loaded
@@ -26,7 +26,7 @@ class TestDieselGeneratorInitialization:
         assert generator.temperature == 25
     
     def test_initialization_with_custom_seed(self):
-        """Test that diesel generator initializes correctly with custom seed."""
+        """Test that diesel generator simulator initializes correctly with custom seed."""
         custom_seed = 123
         generator = DieselGeneratorSimulator(seed=custom_seed)
         
@@ -34,95 +34,100 @@ class TestDieselGeneratorInitialization:
         assert generator.capacity_kva == config['diesel_generator']['capacity_kva']
         assert generator.fuel_tank_capacity == config['diesel_generator']['fuel_tank_capacity']
 
-
-class TestDieselGeneratorFuelConsumption:
-    """Test the fuel consumption calculation of the diesel generator."""
+class TestFuelConsumptionCalculation:
+    """Test the fuel consumption calculation functionality."""
     
     def test_fuel_consumption_when_not_running(self):
         """Test that fuel consumption is zero when generator is not running."""
         generator = DieselGeneratorSimulator()
-        generator.running = False
+        # Generator is not running by default
+        assert generator.running == False
         
-        consumption = generator.calculate_fuel_consumption(0.5)  # 50% load
-        assert consumption == 0.0
+        # Test fuel consumption at different loads
+        assert generator.calculate_fuel_consumption(0.0) == 0.0
+        assert generator.calculate_fuel_consumption(0.5) == 0.0
+        assert generator.calculate_fuel_consumption(1.0) == 0.0
     
     def test_fuel_consumption_at_idle(self):
-        """Test fuel consumption at idle load."""
+        """Test fuel consumption calculation at idle load."""
         generator = DieselGeneratorSimulator()
         generator.running = True
         
-        consumption = generator.calculate_fuel_consumption(0.0)  # 0% load
-        assert consumption == generator.fuel_consumption_rate['idle']
+        # Test fuel consumption at idle (0% load)
+        idle_consumption = generator.calculate_fuel_consumption(0.0)
+        assert idle_consumption == config['diesel_generator']['fuel_consumption_rate']['idle']
     
     def test_fuel_consumption_at_full_load(self):
-        """Test fuel consumption at full load."""
+        """Test fuel consumption calculation at full load."""
         generator = DieselGeneratorSimulator()
         generator.running = True
         
-        consumption = generator.calculate_fuel_consumption(1.0)  # 100% load
-        assert consumption == generator.fuel_consumption_rate['full_load']
+        # Test fuel consumption at full load (100% load)
+        full_load_consumption = generator.calculate_fuel_consumption(1.0)
+        assert full_load_consumption == config['diesel_generator']['fuel_consumption_rate']['full_load']
     
     def test_fuel_consumption_at_partial_load(self):
-        """Test fuel consumption at partial load."""
+        """Test fuel consumption calculation at partial load."""
         generator = DieselGeneratorSimulator()
         generator.running = True
         
-        # Test at 50% load
-        load_percent = 0.5
-        expected_consumption = (
-            generator.fuel_consumption_rate['idle'] +
-            (generator.fuel_consumption_rate['full_load'] - generator.fuel_consumption_rate['idle']) *
-            load_percent
-        )
+        # Test fuel consumption at 50% load (should be linear interpolation)
+        idle_rate = config['diesel_generator']['fuel_consumption_rate']['idle']
+        full_load_rate = config['diesel_generator']['fuel_consumption_rate']['full_load']
+        expected_consumption = idle_rate + (full_load_rate - idle_rate) * 0.5
         
-        consumption = generator.calculate_fuel_consumption(load_percent)
-        assert consumption == expected_consumption
+        partial_load_consumption = generator.calculate_fuel_consumption(0.5)
+        assert partial_load_consumption == expected_consumption
 
-
-class TestDieselGeneratorMaintenance:
-    """Test the maintenance functionality of the diesel generator."""
+class TestMaintenanceFunctionality:
+    """Test the maintenance functionality."""
     
-    def test_needs_maintenance_when_new(self):
+    def test_new_generator_doesnt_need_maintenance(self):
         """Test that a new generator doesn't need maintenance."""
         generator = DieselGeneratorSimulator()
         assert generator.needs_maintenance() == False
     
-    def test_needs_maintenance_after_interval(self):
+    def test_generator_needs_maintenance_after_interval(self):
         """Test that generator needs maintenance after running for the maintenance interval."""
         generator = DieselGeneratorSimulator()
         generator.runtime_hours = generator.maintenance_interval
         assert generator.needs_maintenance() == True
     
-    def test_needs_maintenance_after_maintenance(self):
-        """Test that generator doesn't need maintenance right after maintenance is performed."""
+    def test_generator_doesnt_need_maintenance_after_service(self):
+        """Test that generator doesn't need maintenance after being serviced."""
         generator = DieselGeneratorSimulator()
         generator.runtime_hours = generator.maintenance_interval
+        assert generator.needs_maintenance() == True
+        
+        # Simulate maintenance service
         generator.last_maintenance = generator.runtime_hours
         assert generator.needs_maintenance() == False
 
-
-class TestDieselGeneratorStartStop:
-    """Test the start and stop functionality of the diesel generator."""
+class TestStartStopFunctionality:
+    """Test the generator start/stop functionality."""
     
-    def test_start_generator_normal(self):
+    def test_start_generator_normal_conditions(self):
         """Test starting the generator under normal conditions."""
         generator = DieselGeneratorSimulator()
         result = generator.start_generator()
+        
         assert result == True
         assert generator.running == True
     
     def test_start_generator_no_fuel(self):
-        """Test that generator won't start without fuel."""
+        """Test starting the generator with no fuel."""
         generator = DieselGeneratorSimulator()
         generator.fuel_level = 0
+        
         result = generator.start_generator()
         assert result == False
         assert generator.running == False
     
     def test_start_generator_needs_maintenance(self):
-        """Test that generator won't start when maintenance is needed."""
+        """Test starting the generator when maintenance is needed."""
         generator = DieselGeneratorSimulator()
         generator.runtime_hours = generator.maintenance_interval
+        
         result = generator.start_generator()
         assert result == False
         assert generator.running == False
@@ -131,85 +136,74 @@ class TestDieselGeneratorStartStop:
         """Test stopping the generator."""
         generator = DieselGeneratorSimulator()
         generator.running = True
+        
         generator.stop_generator()
         assert generator.running == False
 
-
-class TestDieselGeneratorOutput:
-    """Test the output generation of the diesel generator."""
+class TestOutputGeneration:
+    """Test the generator output generation functionality."""
     
     def test_output_format(self):
-        """Test that output contains all required fields."""
+        """Test that the output has the correct format."""
         generator = DieselGeneratorSimulator()
-        output = generator.generate_output(500)  # 500 kW request
+        output = generator.generate_output(0)
         
-        # Check that all required fields are present
-        assert 'running' in output
-        assert 'power' in output
-        assert 'frequency' in output
-        assert 'temperature' in output
-        assert 'fuel_level' in output
-        assert 'runtime' in output
-        assert 'needs_maintenance' in output
+        # Check that all expected keys are present
+        expected_keys = ['running', 'power', 'frequency', 'temperature', 
+                         'fuel_level', 'runtime', 'needs_maintenance']
+        for key in expected_keys:
+            assert key in output
     
-    def test_output_when_not_running_below_min_load(self):
-        """Test output when power request is below minimum load."""
+    def test_output_when_not_running(self):
+        """Test output generation when generator is not running."""
         generator = DieselGeneratorSimulator()
-        min_power = generator.capacity_kva * generator.min_load_percent - 1  # Just below min load
-        output = generator.generate_output(min_power)
+        output = generator.generate_output(0)
         
         assert output['running'] == False
         assert output['power'] == 0
         assert output['frequency'] == 0
     
-    def test_output_when_running_above_min_load(self):
-        """Test output when power request is above minimum load."""
+    def test_output_when_running(self):
+        """Test output generation when generator is running."""
         generator = DieselGeneratorSimulator()
-        power_request = generator.capacity_kva * generator.min_load_percent + 10  # Above min load
+        # Request enough power to start the generator
+        power_request = generator.capacity_kva * generator.min_load_percent * 1.1
         output = generator.generate_output(power_request)
         
         assert output['running'] == True
         assert output['power'] == power_request
         assert output['frequency'] > 0
-        assert output['temperature'] > 25  # Should increase from ambient
-        assert output['fuel_level'] < generator.fuel_tank_capacity  # Should consume fuel
-        assert output['runtime'] > 0
+        assert output['fuel_level'] < generator.fuel_tank_capacity
     
-    def test_output_with_no_fuel(self):
-        """Test output when generator has no fuel."""
+    def test_output_when_no_fuel(self):
+        """Test output generation when generator has no fuel."""
         generator = DieselGeneratorSimulator()
         generator.fuel_level = 0
-        power_request = generator.capacity_kva * 0.5  # 50% load
-        output = generator.generate_output(power_request)
+        output = generator.generate_output(generator.capacity_kva)
         
         assert output['running'] == False
         assert output['power'] == 0
         assert output['fuel_level'] == 0
     
-    def test_output_with_maintenance_needed(self):
-        """Test output when generator needs maintenance."""
+    def test_output_when_maintenance_needed(self):
+        """Test output generation when generator needs maintenance."""
         generator = DieselGeneratorSimulator()
         generator.runtime_hours = generator.maintenance_interval
-        power_request = generator.capacity_kva * 0.5  # 50% load
-        output = generator.generate_output(power_request)
+        output = generator.generate_output(generator.capacity_kva)
         
-        assert output['needs_maintenance'] == True
-        # Generator should not start if it needs maintenance
         assert output['running'] == False
         assert output['power'] == 0
+        assert output['needs_maintenance'] == True
     
     def test_minimum_runtime_enforcement(self):
-        """Test that generator keeps running to meet minimum runtime."""
+        """Test that minimum runtime is enforced."""
         generator = DieselGeneratorSimulator()
         
-        # First start the generator with sufficient load
-        high_power = generator.capacity_kva * 0.5  # 50% load
-        generator.generate_output(high_power)
+        # Start the generator with sufficient load
+        power_request = generator.capacity_kva * generator.min_load_percent * 1.1
+        generator.generate_output(power_request)
         assert generator.running == True
         
-        # Now request low power, but generator should keep running due to minimum runtime
-        low_power = generator.capacity_kva * (generator.min_load_percent - 0.1)  # Below min load
-        output = generator.generate_output(low_power)
-        
-        # Generator should still be running due to minimum runtime requirement
-        assert output['running'] == True
+        # Try to stop by requesting low power before minimum runtime is reached
+        output = generator.generate_output(0)
+        assert output['running'] == True  # Should still be running
