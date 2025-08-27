@@ -10,8 +10,8 @@ class FaultType(Enum):
     LINE_PROLONGED_UNDERVOLTAGE = auto()
     INVERTER_IGBT_FAILURE = auto()
     GENERATOR_FIELD_FAILURE = auto()
-    GRID_VOLTAGE_SAG = auto()
-    GRID_OUTAGE = auto()
+    # Removed: GRID_VOLTAGE_SAG = auto()
+    # Removed: GRID_OUTAGE = auto()
     BATTERY_OVERDISCHARGE = auto()
     NO_FAULT = auto()
 
@@ -45,39 +45,34 @@ class FaultInjectionSystem:
         potential_faults = []
         fault_config = config['fault_injection']
         
-        # Line faults
-        if system_state.get('grid_voltage') is not None:
-            if system_state['grid_voltage'][hour] < fault_config['thresholds']['grid_voltage']:
-                potential_faults.append(
-                    (FaultType.LINE_SHORT_CIRCUIT, 
-                     self.fault_probabilities[FaultType.LINE_SHORT_CIRCUIT.name] * 2)
-                )
+        # Line faults - Remove grid voltage check
+        # The grid_voltage check has been removed as part of the grid functionality removal
         
         # Inverter faults
         if system_state.get('inverter_temp') is not None:
-            if system_state['inverter_temp'][hour] > fault_config['thresholds']['inverter_temp']:
+            if system_state['inverter_temp'][hour] > fault_config['thresholds'].get('inverter_temp', 80):
                 potential_faults.append(
                     (FaultType.INVERTER_IGBT_FAILURE,
-                     self.fault_probabilities[FaultType.INVERTER_IGBT_FAILURE.name] * 
-                     (system_state['inverter_temp'][hour] - fault_config['thresholds']['inverter_temp']) / 10)
+                     self.fault_probabilities.get(FaultType.INVERTER_IGBT_FAILURE.name, 0.02) * 
+                     (system_state['inverter_temp'][hour] - fault_config['thresholds'].get('inverter_temp', 80)) / 10)
                 )
         
         # Generator faults
         if system_state.get('generator_runtime') is not None:
-            if system_state['generator_runtime'][hour] > fault_config['thresholds']['generator_runtime']:
+            if system_state['generator_runtime'][hour] > fault_config['thresholds'].get('generator_runtime', 100):
                 potential_faults.append(
                     (FaultType.GENERATOR_FIELD_FAILURE,
-                     self.fault_probabilities[FaultType.GENERATOR_FIELD_FAILURE.name] * 
-                     (system_state['generator_runtime'][hour] / fault_config['thresholds']['generator_runtime']))
+                     self.fault_probabilities.get(FaultType.GENERATOR_FIELD_FAILURE.name, 0.02) * 
+                     (system_state['generator_runtime'][hour] / fault_config['thresholds'].get('generator_runtime', 100)))
                 )
         
         # Battery faults
         if system_state.get('battery_soc') is not None:
-            if system_state['battery_soc'][hour] < fault_config['thresholds']['battery_soc']:
+            if system_state['battery_soc'][hour] < fault_config['thresholds'].get('battery_soc', 0.2):
                 potential_faults.append(
                     (FaultType.BATTERY_OVERDISCHARGE,
-                     self.fault_probabilities[FaultType.BATTERY_OVERDISCHARGE.name] * 
-                     (fault_config['thresholds']['battery_soc'] - system_state['battery_soc'][hour]) * 10)
+                     self.fault_probabilities.get(FaultType.BATTERY_OVERDISCHARGE.name, 0.05) * 
+                     (fault_config['thresholds'].get('battery_soc', 0.2) - system_state['battery_soc'][hour]) * 10)
                 )
         
         return potential_faults
@@ -107,7 +102,7 @@ class FaultInjectionSystem:
                 if np.random.random() < probability:
                     # Generate new fault
                     duration = np.random.randint(
-                        *self.fault_durations[fault_type.name]
+                        *self.fault_durations.get(fault_type.name, (1, 4))
                     )
                     severity = np.random.uniform(0.3, 1.0)
                     
@@ -152,30 +147,49 @@ class FaultInjectionSystem:
                               severity: float) -> Dict[str, float]:
         """Generate the effects of a fault on system parameters."""
         effects = {}
-        fault_config = config['fault_injection']['fault_effects']
+        fault_config = config.get('fault_injection', {}).get('fault_effects', {})
         
         if fault_type == FaultType.LINE_SHORT_CIRCUIT:
+            line_short_circuit = fault_config.get('line_short_circuit', {
+                'voltage_drop_base': 0.1,
+                'voltage_drop_factor': 0.2,
+                'current_spike_base': 1.5,
+                'current_spike_factor': 2.0
+            })
             effects.update({
-                'voltage_drop': fault_config['line_short_circuit']['voltage_drop_base'] + 
-                               fault_config['line_short_circuit']['voltage_drop_factor'] * severity,
-                'current_spike': fault_config['line_short_circuit']['current_spike_base'] + 
-                                fault_config['line_short_circuit']['current_spike_factor'] * severity
+                'voltage_drop': line_short_circuit.get('voltage_drop_base', 0.1) + 
+                               line_short_circuit.get('voltage_drop_factor', 0.2) * severity,
+                'current_spike': line_short_circuit.get('current_spike_base', 1.5) + 
+                                line_short_circuit.get('current_spike_factor', 2.0) * severity
             })
         elif fault_type == FaultType.INVERTER_IGBT_FAILURE:
+            inverter_failure = fault_config.get('inverter_failure', {
+                'efficiency_drop_factor': 0.3,
+                'temperature_rise_factor': 15
+            })
             effects.update({
-                'efficiency_drop': fault_config['inverter_failure']['efficiency_drop_factor'] * severity,
-                'temperature_rise': fault_config['inverter_failure']['temperature_rise_factor'] * severity
+                'efficiency_drop': inverter_failure.get('efficiency_drop_factor', 0.3) * severity,
+                'temperature_rise': inverter_failure.get('temperature_rise_factor', 15) * severity
             })
         elif fault_type == FaultType.GENERATOR_FIELD_FAILURE:
+            generator_failure = fault_config.get('generator_failure', {
+                'voltage_deviation_factor': 0.15,
+                'frequency_deviation_factor': 5
+            })
             effects.update({
-                'voltage_deviation': fault_config['generator_failure']['voltage_deviation_factor'] * severity,
-                'frequency_deviation': fault_config['generator_failure']['frequency_deviation_factor'] * severity
+                'voltage_deviation': generator_failure.get('voltage_deviation_factor', 0.15) * severity,
+                'frequency_deviation': generator_failure.get('frequency_deviation_factor', 5) * severity
             })
         elif fault_type == FaultType.BATTERY_OVERDISCHARGE:
+            battery_overdischarge = fault_config.get('battery_overdischarge', {
+                'capacity_loss_factor': 0.05,
+                'internal_resistance_base': 0.01,
+                'internal_resistance_factor': 0.05
+            })
             effects.update({
-                'capacity_loss': fault_config['battery_overdischarge']['capacity_loss_factor'] * severity,
-                'internal_resistance': fault_config['battery_overdischarge']['internal_resistance_base'] + 
-                                      fault_config['battery_overdischarge']['internal_resistance_factor'] * severity
+                'capacity_loss': battery_overdischarge.get('capacity_loss_factor', 0.05) * severity,
+                'internal_resistance': battery_overdischarge.get('internal_resistance_base', 0.01) + 
+                                      battery_overdischarge.get('internal_resistance_factor', 0.05) * severity
             })
         
         return effects
