@@ -60,7 +60,7 @@ class LoadProfileGenerator:
             hour = current_time.hour
             is_weekend = current_time.weekday() >= 5
             is_holiday = self.is_holiday(current_time)
-            season = df['weather_season'][i]  # Use weather_season for consistency
+            season = df['weather_season'].iloc[i]  # Use weather_season for consistency
             
             # Calculate various factors
             time_factor = self.get_time_factor(hour, is_weekend or is_holiday)

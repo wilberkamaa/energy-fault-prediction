@@ -50,7 +50,7 @@ class FaultInjectionSystem:
         
         # Inverter faults
         if system_state.get('inverter_temp') is not None:
-            if system_state['inverter_temp'][hour] > fault_config['thresholds'].get('inverter_temp', 80):
+            if system_state['inverter_temp'].iloc[hour] > fault_config['thresholds'].get('inverter_temp', 80):
                 potential_faults.append(
                     (FaultType.INVERTER_IGBT_FAILURE,
                      self.fault_probabilities.get(FaultType.INVERTER_IGBT_FAILURE.name, 0.02) * 
@@ -59,7 +59,7 @@ class FaultInjectionSystem:
         
         # Generator faults
         if system_state.get('generator_runtime') is not None:
-            if system_state['generator_runtime'][hour] > fault_config['thresholds'].get('generator_runtime', 100):
+            if system_state['generator_runtime'].iloc[hour] > fault_config['thresholds'].get('generator_runtime', 100):
                 potential_faults.append(
                     (FaultType.GENERATOR_FIELD_FAILURE,
                      self.fault_probabilities.get(FaultType.GENERATOR_FIELD_FAILURE.name, 0.02) * 
@@ -68,7 +68,7 @@ class FaultInjectionSystem:
         
         # Battery faults
         if system_state.get('battery_soc') is not None:
-            if system_state['battery_soc'][hour] < fault_config['thresholds'].get('battery_soc', 0.2):
+            if system_state['battery_soc'].iloc[hour] < fault_config['thresholds'].get('battery_soc', 0.2):
                 potential_faults.append(
                     (FaultType.BATTERY_OVERDISCHARGE,
                      self.fault_probabilities.get(FaultType.BATTERY_OVERDISCHARGE.name, 0.05) * 

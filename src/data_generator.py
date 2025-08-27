@@ -46,8 +46,8 @@ class HybridSystemDataGenerator:
         """
         print("Generating time series base...")
         # Generate time series
-        hours = periods_years * 365 * 24
-        dates = pd.date_range(start=start_date, periods=hours, freq='H')
+        hours = int(periods_years * 365 * 24)
+        dates = pd.date_range(start=start_date, periods=hours, freq='h')
         df = pd.DataFrame(index=dates)
         
         # Add temporal features for weather
