@@ -23,12 +23,14 @@ class DataValidator:
                 df[column] = df[column].clip(min_val, max_val)
         
         # Validate power balance
-        total_generation = (
-            df['solar_power'] +
-            df['generator_power'] +
-            df['grid_power'] +
-            df['battery_power']
-        )
+        # Check if grid power is included in the dataframe
+        include_grid = 'grid_power' in df.columns
+        
+        # Calculate total generation with conditional grid power
+        total_generation = df['solar_power'] + df['generator_power'] + df['battery_power']
+        if include_grid:
+            total_generation += df['grid_power']
+            
         total_load = df['load_demand']
         
         # Allow for small imbalances (from config)
@@ -57,12 +59,11 @@ class DataValidator:
         if 'generator' in data and 'output_power' in data['generator']:
             total_generation += data['generator']['output_power']
         
-        if 'grid' in data and 'available' in data['grid']:
-            grid_power = np.where(
-                data['grid']['available'],
-                data['load']['active_power'] - total_generation,
-                0
-            )
+        # Only include grid power if grid is available and configured
+        include_grid = config.get('grid', {}).get('include_grid', False)
+        if include_grid and 'grid' in data and data.get('grid', {}).get('available', False):
+            grid_power = data['load']['active_power'] - total_generation
+            grid_power = np.where(grid_power > 0, grid_power, 0)  # Only import power if needed
             total_generation += grid_power
         
         if 'battery' in data and 'power_output' in data['battery']:
