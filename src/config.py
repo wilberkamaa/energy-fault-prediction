@@ -77,6 +77,13 @@ config = {
             (12, 12),  # Jamhuri Day
             (12, 25),  # Christmas Day
             (12, 26),  # Boxing Day
+        },
+        'power_factor': {
+            'base': 0.9,
+            'variation': 0.05,
+            'noise_std': 0.01,
+            'min': 0.85,
+            'max': 0.98
         }
     },
     'solar_pv': {
