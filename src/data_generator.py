@@ -97,8 +97,11 @@ class HybridSystemDataGenerator:
         for key, value in solar_data.items():
             df[f'solar_{key}'] = value
             
-        # Initialize remaining power needs after solar
-        power_request_series = solar_data['power'] - load_data['demand']
+        # Calculate remaining load after solar
+        remaining_load_after_solar = load_data['demand'] - solar_data['power']
+
+        # The power request for the battery is the surplus power (if any) or the load to be met
+        power_request_series = -remaining_load_after_solar.copy()
 
         print("Simulating battery system...")
         # Generate battery parameters
@@ -110,7 +113,7 @@ class HybridSystemDataGenerator:
             df[f'battery_{key}'] = value
             
         # Update remaining power needs after battery
-        df['remaining_load'] = df['remaining_load'] - battery_data['power']
+        df['remaining_load'] = remaining_load_after_solar + battery_data['power']
         df['remaining_load'] = df['remaining_load'].clip(lower=0)  # Only consider deficit
         
         print("Simulating diesel generator...")
