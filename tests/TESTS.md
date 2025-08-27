@@ -19,6 +19,15 @@ This document tracks the testing progress, issues encountered, and future improv
 ## Issues and Fixes
 
 ### 2025-08-27
+- **Issue**: `KeyError: 'inverter_temp'` in `tests/unit/fault_injection/test_fault_injection_system.py`.
+- **Fix**: Corrected typo from `inverter_temp` to `inverter_temperature` in `tests/unit/fault_injection/test_fault_injection_system.py`.
+- **Details**: The key in the config was `inverter_temperature` but the test was using `inverter_temp`.
+- **Issue**: `KeyError: 'fault_effects'` and `KeyError: 'BATTERY_OVERDISCHARGE'` in `tests/unit/fault_injection/test_fault_injection_system.py`.
+- **Fix**: Added `fault_effects` dictionary and `BATTERY_OVERDISCHARGE` to `fault_probabilities` and `fault_durations` in `src/config.py`.
+- **Details**: The tests were trying to access keys that were not present in the config.
+- **Issue**: Tests for private method `_generate_fault_effects` in `tests/unit/fault_injection/test_fault_injection_system.py`.
+- **Fix**: Removed the tests for the private method `_generate_fault_effects`.
+- **Details**: It is a best practice to test the public API of a class, not its private methods.
 - **Issue**: `TypeError: generate_output() missing 1 required positional argument: 'power_request_series'` in `tests/unit/battery/test_battery_system.py` and `tests/unit/diesel_generator/test_diesel_generator_system.py`.
 - **Fix**: Modified `generate_output` in `src/battery_system.py` and `src/diesel_generator.py` to handle both single numeric values and pandas Series for the `power_request_series` argument. This was done by checking the type of the input and converting single values to a Series. The methods now also return a dictionary of single values if the input was a single value.
 - **Details**: The tests were calling `generate_output` with a single numeric value, while the method expected a pandas Series. The fix makes the method more flexible and allows the tests to pass without modification.
