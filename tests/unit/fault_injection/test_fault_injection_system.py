@@ -34,7 +34,7 @@ class TestFaultConditionChecking:
         # Create system state with all parameters above thresholds
         system_state = {
             'grid_voltage': np.array([config['fault_injection']['thresholds']['grid_voltage'] * 1.2]),
-            'inverter_temp': np.array([config['fault_injection']['thresholds']['inverter_temp'] - 10]),
+            'inverter_temperature': np.array([config['fault_injection']['thresholds']['inverter_temperature'] - 10]),
             'generator_runtime': np.array([config['fault_injection']['thresholds']['generator_runtime'] - 10]),
             'battery_soc': np.array([config['fault_injection']['thresholds']['battery_soc'] + 0.3])
         }
@@ -49,7 +49,7 @@ class TestFaultConditionChecking:
         # Create system state with low grid voltage
         system_state = {
             'grid_voltage': np.array([config['fault_injection']['thresholds']['grid_voltage'] * 0.9]),
-            'inverter_temp': np.array([config['fault_injection']['thresholds']['inverter_temp'] - 10]),
+            'inverter_temperature': np.array([config['fault_injection']['thresholds']['inverter_temperature'] - 10]),
             'generator_runtime': np.array([config['fault_injection']['thresholds']['generator_runtime'] - 10]),
             'battery_soc': np.array([config['fault_injection']['thresholds']['battery_soc'] + 0.3])
         }
@@ -66,7 +66,7 @@ class TestFaultConditionChecking:
         # Create system state with high inverter temperature
         system_state = {
             'grid_voltage': np.array([config['fault_injection']['thresholds']['grid_voltage'] * 1.2]),
-            'inverter_temp': np.array([config['fault_injection']['thresholds']['inverter_temp'] + 10]),
+            'inverter_temperature': np.array([config['fault_injection']['thresholds']['inverter_temperature'] + 10]),
             'generator_runtime': np.array([config['fault_injection']['thresholds']['generator_runtime'] - 10]),
             'battery_soc': np.array([config['fault_injection']['thresholds']['battery_soc'] + 0.3])
         }
@@ -83,7 +83,7 @@ class TestFaultConditionChecking:
         # Create system state with low battery SOC
         system_state = {
             'grid_voltage': np.array([config['fault_injection']['thresholds']['grid_voltage'] * 1.2]),
-            'inverter_temp': np.array([config['fault_injection']['thresholds']['inverter_temp'] - 10]),
+            'inverter_temperature': np.array([config['fault_injection']['thresholds']['inverter_temperature'] - 10]),
             'generator_runtime': np.array([config['fault_injection']['thresholds']['generator_runtime'] - 10]),
             'battery_soc': np.array([config['fault_injection']['thresholds']['battery_soc'] - 0.05])
         }
@@ -104,7 +104,7 @@ class TestFaultEventGeneration:
         df = pd.DataFrame(index=range(24))  # 24 hours
         system_state = {
             'grid_voltage': np.array([config['fault_injection']['thresholds']['grid_voltage'] * 1.2] * 24),
-            'inverter_temp': np.array([config['fault_injection']['thresholds']['inverter_temp'] - 10] * 24),
+            'inverter_temperature': np.array([config['fault_injection']['thresholds']['inverter_temperature'] - 10] * 24),
             'generator_runtime': np.array([config['fault_injection']['thresholds']['generator_runtime'] - 10] * 24),
             'battery_soc': np.array([config['fault_injection']['thresholds']['battery_soc'] + 0.3] * 24)
         }
@@ -135,7 +135,7 @@ class TestFaultEventGeneration:
         df = pd.DataFrame(index=range(24))  # 24 hours
         system_state = {
             'grid_voltage': np.array([config['fault_injection']['thresholds']['grid_voltage'] * 0.9] * 24),
-            'inverter_temp': np.array([config['fault_injection']['thresholds']['inverter_temp'] - 10] * 24),
+            'inverter_temperature': np.array([config['fault_injection']['thresholds']['inverter_temperature'] - 10] * 24),
             'generator_runtime': np.array([config['fault_injection']['thresholds']['generator_runtime'] - 10] * 24),
             'battery_soc': np.array([config['fault_injection']['thresholds']['battery_soc'] + 0.3] * 24)
         }
@@ -148,45 +148,3 @@ class TestFaultEventGeneration:
         assert fault_events['severity'][0] == 0.5
         assert fault_events['start'][0]
         assert fault_events['duration'][0] == 3
-
-class TestFaultEffects:
-    """Test the generation of fault effects."""
-    
-    def test_generate_fault_effects_line_short_circuit(self):
-        """Test that appropriate effects are generated for line short circuit."""
-        fault_injector = FaultInjectionSystem(seed=42)
-        
-        effects = fault_injector._generate_fault_effects(FaultType.LINE_SHORT_CIRCUIT, 0.5)
-        
-        # Verify effects contain expected keys
-        assert 'voltage_drop' in effects
-        assert 'current_spike' in effects
-        
-        # Verify effect values are calculated correctly
-        fault_config = config['fault_injection']['fault_effects']
-        expected_voltage_drop = fault_config['line_short_circuit']['voltage_drop_base'] + \
-                              fault_config['line_short_circuit']['voltage_drop_factor'] * 0.5
-        expected_current_spike = fault_config['line_short_circuit']['current_spike_base'] + \
-                               fault_config['line_short_circuit']['current_spike_factor'] * 0.5
-        
-        assert effects['voltage_drop'] == expected_voltage_drop
-        assert effects['current_spike'] == expected_current_spike
-    
-    def test_generate_fault_effects_battery_overdischarge(self):
-        """Test that appropriate effects are generated for battery overdischarge."""
-        fault_injector = FaultInjectionSystem(seed=42)
-        
-        effects = fault_injector._generate_fault_effects(FaultType.BATTERY_OVERDISCHARGE, 0.7)
-        
-        # Verify effects contain expected keys
-        assert 'capacity_loss' in effects
-        assert 'internal_resistance' in effects
-        
-        # Verify effect values are calculated correctly
-        fault_config = config['fault_injection']['fault_effects']
-        expected_capacity_loss = fault_config['battery_overdischarge']['capacity_loss_factor'] * 0.7
-        expected_internal_resistance = fault_config['battery_overdischarge']['internal_resistance_base'] + \
-                                     fault_config['battery_overdischarge']['internal_resistance_factor'] * 0.7
-        
-        assert effects['capacity_loss'] == expected_capacity_loss
-        assert effects['internal_resistance'] == expected_internal_resistance

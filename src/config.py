@@ -27,18 +27,33 @@ config = {
         'fault_probabilities': {
             'LINE_SHORT_CIRCUIT': 0.05,
             'INVERTER_IGBT_FAILURE': 0.02,
-            'GRID_OUTAGE': 0.1
+            'GRID_OUTAGE': 0.1,
+            'BATTERY_OVERDISCHARGE': 0.03
         },
         'fault_durations': {
             'LINE_SHORT_CIRCUIT': (1, 4),
             'INVERTER_IGBT_FAILURE': (2, 8),
-            'GRID_OUTAGE': (1, 24)
+            'GRID_OUTAGE': (1, 24),
+            'BATTERY_OVERDISCHARGE': (2, 6)
         },
         'thresholds': {
             'grid_voltage': 0.8 * 25000,
             'inverter_temperature': 80,
             'generator_runtime': 100,
             'battery_soc': 0.2
+        },
+        'fault_effects': {
+            'line_short_circuit': {
+                'voltage_drop_base': 0.2,
+                'voltage_drop_factor': 0.3,
+                'current_spike_base': 1.5,
+                'current_spike_factor': 2.0
+            },
+            'battery_overdischarge': {
+                'capacity_loss_factor': 0.01,
+                'internal_resistance_base': 0.005,
+                'internal_resistance_factor': 0.01
+            }
         }
     },
     'grid': {
