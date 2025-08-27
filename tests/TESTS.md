@@ -19,6 +19,9 @@ This document tracks the testing progress, issues encountered, and future improv
 ## Issues and Fixes
 
 ### 2025-08-27
+- **Issue**: `AttributeError: 'numpy.ndarray' object has no attribute 'iloc'` in `src/fault_injection.py`.
+- **Fix**: Replaced `.iloc[hour]` with `[hour]` when accessing elements from numpy arrays in `check_fault_conditions` method.
+- **Details**: The code was using pandas `.iloc` accessor on numpy arrays, which is incorrect.
 - **Issue**: `KeyError: 'inverter_temp'` in `tests/unit/fault_injection/test_fault_injection_system.py`.
 - **Fix**: Corrected typo from `inverter_temp` to `inverter_temperature` in `tests/unit/fault_injection/test_fault_injection_system.py`.
 - **Details**: The key in the config was `inverter_temperature` but the test was using `inverter_temp`.
