@@ -52,10 +52,10 @@ class BatterySystemSimulator:
     def update_state(self, power_kw: float, time_step_hours: float = 1.0) -> None:
         """Update battery state based on power flow and time step."""
         # Calculate energy change
-        if power_kw > 0:  # Charging
-            energy_change = power_kw * time_step_hours * self.charging_efficiency
+        if power_kw < 0:  # Charging
+            energy_change = -power_kw * time_step_hours * self.charging_efficiency
         else:  # Discharging
-            energy_change = power_kw * time_step_hours / self.discharging_efficiency
+            energy_change = -power_kw * time_step_hours / self.discharging_efficiency
         
         # Update SOC
         energy_capacity = self.capacity_kwh * (1 - self.degradation_per_cycle * self.cycle_count)
@@ -73,8 +73,15 @@ class BatterySystemSimulator:
         # Update remaining capacity
         self.remaining_capacity = energy_capacity
     
-    def generate_output(self, df: pd.DataFrame, power_request_series: pd.Series) -> Dict[str, Any]:
+    def generate_output(self, power_request_series, df: pd.DataFrame = None) -> Dict[str, Any]:
         """Generate battery system output parameters for a time series."""
+        is_single_value = isinstance(power_request_series, (int, float))
+        if is_single_value:
+            power_request_series = pd.Series([power_request_series])
+        
+        if df is None:
+            df = pd.DataFrame(index=range(len(power_request_series)))
+
         num_steps = len(df)
         
         # Initialize arrays to store results
@@ -93,10 +100,10 @@ class BatterySystemSimulator:
             limits = self.calculate_power_limits()
             
             # Limit power request to available capacity
-            if power_request > 0:  # Charging
-                power = min(power_request, limits['charge_limit'])
+            if power_request < 0:  # Charging
+                power = max(power_request, -limits['charge_limit'])
             else:  # Discharging
-                power = max(power_request, -limits['discharge_limit'])
+                power = min(power_request, limits['discharge_limit'])
             
             # Update battery state
             self.update_state(power)
@@ -112,7 +119,7 @@ class BatterySystemSimulator:
             capacity_output[i] = self.remaining_capacity
             cycle_count_output[i] = self.cycle_count
 
-        return {
+        output = {
             'power': power_output,
             'current': current_output,
             'voltage': voltage_output,
@@ -121,3 +128,8 @@ class BatterySystemSimulator:
             'remaining_capacity': capacity_output,
             'cycle_count': cycle_count_output
         }
+
+        if is_single_value:
+            return {k: v[0] for k, v in output.items()}
+        else:
+            return output

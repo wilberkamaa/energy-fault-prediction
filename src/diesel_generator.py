@@ -58,8 +58,15 @@ class DieselGeneratorSimulator:
         """Stop the generator."""
         self.running = False
     
-    def generate_output(self, df: pd.DataFrame, power_request_series: pd.Series) -> Dict[str, Any]:
+    def generate_output(self, power_request_series, df: pd.DataFrame = None) -> Dict[str, Any]:
         """Generate generator output parameters for a time series."""
+        is_single_value = isinstance(power_request_series, (int, float))
+        if is_single_value:
+            power_request_series = pd.Series([power_request_series])
+
+        if df is None:
+            df = pd.DataFrame(index=range(len(power_request_series)))
+
         num_steps = len(df)
         
         # Initialize arrays to store results
@@ -124,7 +131,7 @@ class DieselGeneratorSimulator:
             runtime_output[i] = self.runtime_hours
             needs_maintenance_output[i] = self.needs_maintenance()
 
-        return {
+        output = {
             'running': running_output,
             'power': power_output,
             'frequency': frequency_output,
@@ -133,3 +140,8 @@ class DieselGeneratorSimulator:
             'runtime': runtime_output,
             'needs_maintenance': needs_maintenance_output
         }
+
+        if is_single_value:
+            return {k: v[0] for k, v in output.items()}
+        else:
+            return output
