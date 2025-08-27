@@ -72,29 +72,51 @@ class BatterySystemSimulator:
         # Update remaining capacity
         self.remaining_capacity = energy_capacity
     
-    def generate_output(self, power_request: float, time_step_hours: float = 1.0) -> Dict[str, Any]:
-        """Generate battery system output parameters."""
-        # Get current power limits
-        limits = self.calculate_power_limits()
+    def generate_output(self, df: pd.DataFrame, power_request_series: pd.Series) -> Dict[str, Any]:
+        """Generate battery system output parameters for a time series."""
+        num_steps = len(df)
         
-        # Limit power request to available capacity
-        if power_request > 0:  # Charging
-            power = min(power_request, limits['charge_limit'])
-        else:  # Discharging
-            power = max(power_request, -limits['discharge_limit'])
-        
-        # Update battery state
-        self.update_state(power, time_step_hours)
-        
-        # Calculate current
-        current = power * 1000 / self.nominal_voltage if power != 0 else 0
-        
+        # Initialize arrays to store results
+        power_output = np.zeros(num_steps)
+        current_output = np.zeros(num_steps)
+        voltage_output = np.full(num_steps, self.nominal_voltage)
+        soc_output = np.zeros(num_steps)
+        temperature_output = np.zeros(num_steps)
+        capacity_output = np.zeros(num_steps)
+        cycle_count_output = np.zeros(num_steps)
+
+        for i in range(num_steps):
+            power_request = power_request_series.iloc[i]
+            
+            # Get current power limits
+            limits = self.calculate_power_limits()
+            
+            # Limit power request to available capacity
+            if power_request > 0:  # Charging
+                power = min(power_request, limits['charge_limit'])
+            else:  # Discharging
+                power = max(power_request, -limits['discharge_limit'])
+            
+            # Update battery state
+            self.update_state(power)
+            
+            # Calculate current
+            current = power * 1000 / self.nominal_voltage if power != 0 else 0
+            
+            # Store results
+            power_output[i] = power
+            current_output[i] = current
+            soc_output[i] = self.state_of_charge
+            temperature_output[i] = 25 + abs(current) * 0.1  # Simple temperature model
+            capacity_output[i] = self.remaining_capacity
+            cycle_count_output[i] = self.cycle_count
+
         return {
-            'power': power,
-            'current': current,
-            'voltage': self.nominal_voltage,
-            'soc': self.state_of_charge,
-            'temperature': 25 + abs(current) * 0.1,  # Simple temperature model
-            'remaining_capacity': self.remaining_capacity,
-            'cycle_count': self.cycle_count
+            'power': power_output,
+            'current': current_output,
+            'voltage': voltage_output,
+            'soc': soc_output,
+            'temperature': temperature_output,
+            'remaining_capacity': capacity_output,
+            'cycle_count': cycle_count_output
         }
