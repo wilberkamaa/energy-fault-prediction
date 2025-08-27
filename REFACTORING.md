@@ -67,3 +67,9 @@ component_config = config['component_name']
 - Grid power can be disabled using `include_grid` flag in configuration
 - Holidays are now configured as month-day tuples for better reusability across years
 - Defensive programming has been added to handle cases where grid parameters are not available
+
+## Version Control
+- All changes are being tracked with git commits
+- Each major refactoring step should be committed separately with descriptive messages
+- Use `git commit -m "[Component] Description of changes"` format for consistency
+- Example: `git commit -m "[Validation] Remove grid power from power balance calculations"`

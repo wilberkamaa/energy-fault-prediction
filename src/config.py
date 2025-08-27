@@ -121,20 +121,25 @@ config = {
             'short_rains': {'cloud_cover': (0.3, 0.5), 'temp_range': (22, 30)},
             'dry': {'cloud_cover': (0.1, 0.3), 'temp_range': (25, 33)}
         },
-        'base_temperature': {
-            'mean': 25,
-            'daily_variation': 5,
-            'peak_hour': 14
-        },
+        'base_temperature': 25,
+        'temperature_amplitude': 5,
+        'temperature_peak_hour': 14,
+        'temperature_noise_std': 0.5,
         'season_temp_offset': {
             'long_rains': -2,
             'short_rains': 0,
             'dry': 2
         },
-        'seed': 42,
-        'base_temperature': 25,
-        'temperature_amplitude': 5,
-        'temperature_peak_hour': 14,
-        'temperature_noise_std': 0.5,
+        'cloud_hour_amplitude': 0.2,
+        'cloud_peak_hour': 15,
+        'humidity_base': 60,
+        'humidity_amplitude': 15,
+        'humidity_cloud_factor': 0.1,
+        'humidity_noise_std': 2,
+        'humidity_min': 30,
+        'humidity_max': 95,
+        'wind_weibull_shape': 2,
+        'wind_weibull_scale': 5,
+        'seed': 42
     }
 }

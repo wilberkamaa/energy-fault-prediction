@@ -7,10 +7,10 @@ from .weather import WeatherSimulator
 from .solar_pv import SolarPVSimulator
 from .diesel_generator import DieselGeneratorSimulator
 from .battery_system import BatterySystemSimulator
-# Removed: from .grid_connection import GridConnectionSimulator
 from .load_profile import LoadProfileGenerator
 from .fault_injection import FaultInjectionSystem
 from .validation import DataValidator
+from .config import config
 
 class HybridSystemDataGenerator:
     """Main class for generating synthetic data for the hybrid energy system."""
@@ -25,7 +25,6 @@ class HybridSystemDataGenerator:
         self.solar_sim = SolarPVSimulator(seed=seed)
         self.generator_sim = DieselGeneratorSimulator(seed=seed)
         self.battery_sim = BatterySystemSimulator(seed=seed)
-        # Removed: self.grid_sim = GridConnectionSimulator(seed=seed)
         self.load_gen = LoadProfileGenerator(seed=seed)
         self.fault_sim = FaultInjectionSystem(seed=seed)
         self.validator = DataValidator()
@@ -116,16 +115,6 @@ class HybridSystemDataGenerator:
         df['remaining_load'] = df['remaining_load'] - battery_data['power']
         df['remaining_load'] = df['remaining_load'].clip(lower=0)  # Only consider deficit
         
-        # Removed grid connection simulation section
-        # print("Simulating grid connection...")
-        # grid_data = self.grid_sim.generate_output(df)
-        # for key, value in grid_data.items():
-        #     df[f'grid_{key}'] = value
-        #     
-        # Update remaining power needs after grid
-        # df['remaining_load'] = df['remaining_load'] - grid_data['power']
-        # df['remaining_load'] = df['remaining_load'].clip(lower=0)  # Only consider deficit
-        
         print("Simulating diesel generator...")
         # Generate generator parameters - only for remaining load after solar and battery
         generator_data = self.generator_sim.generate_output(
@@ -144,7 +133,6 @@ class HybridSystemDataGenerator:
         print("Injecting faults...")
         # Generate fault events
         system_state = {
-            # Removed: 'grid_voltage': df['grid_voltage'],
             'inverter_temp': df['solar_cell_temp'],
             'generator_runtime': df['generator_runtime'],
             'battery_soc': df['battery_soc']
@@ -152,6 +140,15 @@ class HybridSystemDataGenerator:
         fault_data = self.fault_sim.generate_fault_events(df, system_state)
         for key, value in fault_data.items():
             df[f'fault_{key}'] = value
+        
+        # Add placeholder grid columns with zeros for compatibility with existing code
+        # This is defensive programming to ensure code that expects grid columns doesn't break
+        if not config['grid']['include_grid']:
+            df['grid_power'] = 0.0
+            df['grid_voltage'] = 0.0
+            df['grid_frequency'] = 0.0
+            df['grid_available'] = False
+            df['grid_power_quality'] = 0.0
         
         print("Validating data...")
         # Validate and clean data

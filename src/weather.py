@@ -35,7 +35,7 @@ class WeatherSimulator:
         temp_base = base_temp + temp_amplitude * np.sin(2 * np.pi * (df['weather_hour'] - peak_hour) / 24)
         
         # Add seasonal variation
-        season_temp_offset = weather_config['season_temperature_offset']
+        season_temp_offset = weather_config['season_temp_offset']
         temp_seasonal = df['weather_season'].map(season_temp_offset)
         
         # Add random variations
