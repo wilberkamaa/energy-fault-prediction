@@ -18,6 +18,14 @@ This document tracks the testing progress, issues encountered, and future improv
 
 ## Issues and Fixes
 
+### 2025-08-27
+- **Issue**: `TypeError: generate_output() missing 1 required positional argument: 'power_request_series'` in `tests/unit/battery/test_battery_system.py` and `tests/unit/diesel_generator/test_diesel_generator_system.py`.
+- **Fix**: Modified `generate_output` in `src/battery_system.py` and `src/diesel_generator.py` to handle both single numeric values and pandas Series for the `power_request_series` argument. This was done by checking the type of the input and converting single values to a Series. The methods now also return a dictionary of single values if the input was a single value.
+- **Details**: The tests were calling `generate_output` with a single numeric value, while the method expected a pandas Series. The fix makes the method more flexible and allows the tests to pass without modification.
+- **Issue**: `AssertionError` in `test_charging_state_update` and `test_discharging_state_update` in `tests/unit/battery/test_battery_system.py`.
+- **Fix**: Inverted the charging/discharging logic in `update_state` and `generate_output` methods in `src/battery_system.py`.
+- **Details**: The convention in the tests is that negative power means charging and positive power means discharging. The implementation had the opposite logic.
+
 ### 2023-10-12
 - **Issue**: Import error in test_config_integration.py - `FaultInjector` class not found
 - **Fix**: Updated import to use `FaultInjectionSystem` which is the actual class name in fault_injection.py
