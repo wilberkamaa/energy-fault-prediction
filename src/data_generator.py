@@ -120,9 +120,7 @@ class HybridSystemDataGenerator:
         # Generate generator parameters - only for remaining load after solar and battery
         generator_data = self.generator_sim.generate_output(
             df,
-            df['remaining_load'],  # Only the remaining load after other sources
-            solar_data['power'],  
-            battery_data['power'] 
+            df['remaining_load']  # Only the remaining load after other sources
         )
         for key, value in generator_data.items():
             df[f'generator_{key}'] = value
