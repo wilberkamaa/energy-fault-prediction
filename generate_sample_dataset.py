@@ -17,7 +17,7 @@ print(f"Grid inclusion status: {config['grid']['include_grid']}")
 generator = HybridSystemDataGenerator(seed=42)
 dataset = generator.generate_dataset(
     start_date='2023-01-01',
-    periods_years=1/12,  # 1 month
+    periods_years=1,  # 1 month
     output_file='data/sample/hybrid_system_sample.parquet'
 )
 
